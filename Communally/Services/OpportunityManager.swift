@@ -97,7 +97,9 @@ class OpportunityManager: ObservableObject {
         isVolunteer: Bool,
         payAmount: String?,
         jobType: String,
-        hirerId: String
+        hirerId: String,
+        hirerName: String,
+        hirerImageData: Data?
     ) {
         let opportunityId = UUID().uuidString
         let opportunity = Opportunity(
@@ -105,6 +107,8 @@ class OpportunityManager: ObservableObject {
             title: title,
             description: description,
             hirerId: hirerId,
+            hirerName: hirerName,
+            hirerImageData: hirerImageData,
             location: location,
             locationName: locationName,
             isVolunteer: isVolunteer,
@@ -122,7 +126,7 @@ class OpportunityManager: ObservableObject {
             try db.collection("opportunities").document(opportunityId).setData(from: opportunity)
             print("✅ Posted opportunity to Firestore: \(title)")
             print("🔍 Opportunity ID: \(opportunityId)")
-            print("👤 Hirer ID: \(hirerId)")
+            print("👤 Hirer: \(hirerName) (\(hirerId))")
         } catch {
             print("❌ Error posting opportunity: \(error.localizedDescription)")
         }
@@ -197,6 +201,35 @@ class OpportunityManager: ObservableObject {
             }
         }
     }
+    
+    // MARK: - Data Management
+    
+    /// Delete all opportunities from Firestore (for testing/reset purposes)
+    func deleteAllOpportunities() async {
+        print("🗑️ Starting to delete all opportunities...")
+        
+        do {
+            let snapshot = try await db.collection("opportunities").getDocuments()
+            
+            print("📋 Found \(snapshot.documents.count) opportunities to delete")
+            
+            // Delete in batches for better performance
+            let batch = db.batch()
+            for document in snapshot.documents {
+                batch.deleteDocument(document.reference)
+            }
+            
+            try await batch.commit()
+            
+            await MainActor.run {
+                self.opportunities = []
+            }
+            
+            print("✅ Successfully deleted all opportunities from Firestore")
+        } catch {
+            print("❌ Error deleting all opportunities: \(error.localizedDescription)")
+        }
+    }
 }
 
 struct Opportunity: Identifiable, Codable {
@@ -204,6 +237,8 @@ struct Opportunity: Identifiable, Codable {
     let title: String
     let description: String
     let hirerId: String
+    let hirerName: String
+    let hirerImageData: Data?
     let location: Location
     let locationName: String
     let isVolunteer: Bool
@@ -221,6 +256,8 @@ struct Opportunity: Identifiable, Codable {
         case title
         case description
         case hirerId
+        case hirerName
+        case hirerImageData
         case location
         case locationName
         case isVolunteer

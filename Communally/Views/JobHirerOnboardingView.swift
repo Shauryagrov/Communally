@@ -34,34 +34,75 @@ struct JobHirerOnboardingView: View {
     
     var body: some View {
         ZStack {
-            CommunallyTheme.white
+            // Soft gradient background
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.97, green: 0.99, blue: 0.95),
+                    Color.white,
+                    Color(red: 0.98, green: 1.0, blue: 0.96)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
+                // Top navigation bar
+                VStack(spacing: 16) {
                 // Back button to return to user type selection
                 HStack {
                     Button(action: {
+                            let impactLight = UIImpactFeedbackGenerator(style: .light)
+                            impactLight.impactOccurred()
                         dismiss()
                     }) {
-                        HStack(spacing: 8) {
+                            HStack(spacing: 6) {
                             Image(systemName: "chevron.left")
-                                .font(.system(size: 16, weight: .medium))
-                            Text("← Back to Selection")
-                                .font(CommunallyTheme.bodyFont)
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Back to Selection")
+                                    .font(.system(size: 15, weight: .medium, design: .rounded))
                         }
                         .foregroundColor(CommunallyTheme.primaryGreen)
                     }
                     Spacer()
-                }
-                .padding(.horizontal, CommunallyTheme.padding)
-                .padding(.top, CommunallyTheme.padding)
+                        
+                        // Step indicator
+                        Text("Step \(currentStep + 1) of \(totalSteps)")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
                 
-                // Progress indicator
-                ProgressView(value: Double(currentStep), total: Double(totalSteps))
-                    .progressViewStyle(LinearProgressViewStyle(tint: CommunallyTheme.primaryGreen))
-                    .scaleEffect(x: 1, y: 2, anchor: .center)
-                    .padding(.horizontal, CommunallyTheme.padding)
-                    .padding(.top, 10)
+                    // Enhanced Progress Bar
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            // Background track
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(red: 0.93, green: 0.93, blue: 0.93))
+                                .frame(height: 6)
+                            
+                            // Progress fill with gradient
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            CommunallyTheme.primaryGreen,
+                                            CommunallyTheme.secondaryGreen
+                                        ],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: geometry.size.width * CGFloat(currentStep) / CGFloat(totalSteps), height: 6)
+                                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: currentStep)
+                        }
+                    }
+                    .frame(height: 6)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 8)
+                }
+                .background(Color.white)
                 
                 // Content
                 TabView(selection: $currentStep) {
@@ -254,86 +295,336 @@ struct JobHirerOnboardingView: View {
     
     // MARK: - Location & Terms Step
     private var locationAndTermsStep: some View {
-        VStack(spacing: 30) {
-            Text("📍 Location & Terms")
-                .font(CommunallyTheme.titleFont)
-                .foregroundColor(Color.black)
-                .multilineTextAlignment(.center)
-            
-            VStack(spacing: 20) {
-                Image(systemName: "location.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(CommunallyTheme.primaryGreen)
-                
-                Text("📍 Location Preferences")
-                    .font(CommunallyTheme.subtitleFont)
-                    .foregroundColor(Color.black)
-                    .multilineTextAlignment(.center)
-                
-                VStack(spacing: 15) {
-                    Toggle("📍 Use Current Location", isOn: $hasLocation)
-                        .toggleStyle(SwitchToggleStyle(tint: CommunallyTheme.primaryGreen))
-                    
-                    Text("Allow the app to use your current location to show nearby job seekers")
-                        .font(CommunallyTheme.bodyFont)
-                        .foregroundColor(Color.black)
-                        .multilineTextAlignment(.center)
-                }
-                .padding()
-                .background(Color.white)
-                .cornerRadius(CommunallyTheme.cornerRadius)
-                
-                // Terms Acceptance
-                VStack(spacing: 15) {
-                    HStack {
-                        Toggle("", isOn: $termsAccepted)
-                            .toggleStyle(SwitchToggleStyle(tint: CommunallyTheme.primaryGreen))
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 32) {
+                // Header
+                VStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        CommunallyTheme.primaryGreen.opacity(0.15),
+                                        CommunallyTheme.secondaryGreen.opacity(0.15)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 80, height: 80)
                         
-                        Text("✅ I accept the Terms of Service and Privacy Policy")
-                            .font(CommunallyTheme.bodyFont)
-                            .foregroundColor(Color.black)
+                        Image(systemName: "location.circle.fill")
+                            .font(.system(size: 48, weight: .semibold))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [
+                                        CommunallyTheme.primaryGreen,
+                                        CommunallyTheme.secondaryGreen
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
                     }
                     
-                    Text("By accepting, you agree to comply with all local employment laws and regulations.")
-                        .font(CommunallyTheme.captionFont)
-                        .foregroundColor(Color.black)
+                    Text("Location & Terms")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
+                    
+                    Text("Just a couple more things before we get started")
+                        .font(.system(size: 15, weight: .regular, design: .rounded))
+                        .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.4))
                         .multilineTextAlignment(.center)
                 }
-                .padding()
-                .background(Color.white)
-                .cornerRadius(CommunallyTheme.cornerRadius)
-            }
+                .padding(.top, 20)
+                
+                // Location Preferences Card
+                VStack(alignment: .leading, spacing: 20) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(CommunallyTheme.primaryGreen.opacity(0.12))
+                                .frame(width: 44, height: 44)
+                            
+                            Image(systemName: "map.fill")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(CommunallyTheme.primaryGreen)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Location Preferences")
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
+                            
+                            Text("Help us connect you with nearby job seekers")
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                        }
+                        
+                        Spacer()
+                    }
+                    
+                    Divider()
+                        .background(Color(red: 0.9, green: 0.9, blue: 0.9))
+                
+                    // Toggle with better layout
+                    VStack(spacing: 12) {
+                    HStack {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Use Current Location")
+                                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                    .foregroundColor(Color(red: 0.2, green: 0.2, blue: 0.2))
+                                
+                                Text("Allow the app to show nearby job seekers in your area")
+                                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            
+                            Spacer()
+                            
+                            Toggle("", isOn: $hasLocation)
+                                .labelsHidden()
+                                .tint(CommunallyTheme.primaryGreen)
+                        }
+                    }
+                }
+                .padding(24)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color.white)
+                        .shadow(color: .black.opacity(0.06), radius: 20, x: 0, y: 8)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .strokeBorder(Color(red: 0.92, green: 0.92, blue: 0.92), lineWidth: 1)
+                )
+                
+                // Terms & Conditions Card
+                VStack(alignment: .leading, spacing: 20) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(CommunallyTheme.primaryGreen.opacity(0.12))
+                                .frame(width: 44, height: 44)
+                            
+                            Image(systemName: "doc.text.fill")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(CommunallyTheme.primaryGreen)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Terms & Privacy")
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
+                            
+                            Text("Review and accept our policies")
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                        }
+                        
+                        Spacer()
+                    }
+                    
+                    Divider()
+                        .background(Color(red: 0.9, green: 0.9, blue: 0.9))
+                    
+                    // Terms acceptance with better layout
+                    VStack(spacing: 16) {
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                termsAccepted.toggle()
+                            }
+                        }) {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .strokeBorder(
+                                            termsAccepted ? Color.clear : Color(red: 0.8, green: 0.8, blue: 0.8),
+                                            lineWidth: 2
+                                        )
+                                        .frame(width: 28, height: 28)
+                                    
+                                    if termsAccepted {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [
+                                                        CommunallyTheme.primaryGreen,
+                                                        CommunallyTheme.secondaryGreen
+                                                    ],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                            .frame(width: 28, height: 28)
+                                        
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 14, weight: .bold))
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("I accept the Terms of Service and Privacy Policy")
+                                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                        .foregroundColor(Color(red: 0.2, green: 0.2, blue: 0.2))
+                                        .multilineTextAlignment(.leading)
+                                    
+                                    HStack(spacing: 4) {
+                                        Button(action: {
+                                            // Open Terms of Service
+                                        }) {
+                                            Text("Terms")
+                                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                                .foregroundColor(CommunallyTheme.primaryGreen)
+                                                .underline()
+                                        }
+                                        
+                                        Text("•")
+                                            .font(.system(size: 13))
+                                            .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.6))
+                                        
+                                        Button(action: {
+                                            // Open Privacy Policy
+                                        }) {
+                                            Text("Privacy")
+                                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                                .foregroundColor(CommunallyTheme.primaryGreen)
+                                                .underline()
+                                        }
+                                    }
+                                }
+                                
+                                Spacer()
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        // Legal disclaimer
+                        HStack(spacing: 8) {
+                            Image(systemName: "info.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.6))
+                    
+                    Text("By accepting, you agree to comply with all local employment laws and regulations.")
+                                .font(.system(size: 12, weight: .regular, design: .rounded))
+                                .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(red: 0.97, green: 0.97, blue: 0.97))
+                        )
+                    }
+                }
+                .padding(24)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color.white)
+                        .shadow(color: .black.opacity(0.06), radius: 20, x: 0, y: 8)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .strokeBorder(Color(red: 0.92, green: 0.92, blue: 0.92), lineWidth: 1)
+                )
         }
-        .padding(CommunallyTheme.padding)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 40)
+        }
     }
     
     // MARK: - Navigation Buttons
     private var navigationButtons: some View {
-        HStack {
+        HStack(spacing: 12) {
             if currentStep > 0 {
-                Button("← Back") {
-                    withAnimation {
+                Button(action: {
+                    let impactLight = UIImpactFeedbackGenerator(style: .light)
+                    impactLight.impactOccurred()
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                         currentStep -= 1
                     }
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text("Back")
+                            .font(.system(size: 17, weight: .semibold, design: .rounded))
+            }
+                    .foregroundColor(Color(red: 0.3, green: 0.3, blue: 0.3))
+                    .frame(height: 56)
+                    .frame(maxWidth: currentStep == totalSteps - 1 ? .infinity : 100)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .strokeBorder(Color(red: 0.85, green: 0.85, blue: 0.85), lineWidth: 2)
+                            )
+                    )
                 }
-                .buttonStyle(CommunallyTheme.secondaryButtonStyle)
             }
             
-            Spacer()
-            
-            Button(currentStep == totalSteps - 1 ? "✨ Complete" : "Next →") {
+            Button(action: {
+                let impactMed = UIImpactFeedbackGenerator(style: .medium)
+                impactMed.impactOccurred()
+                
                 if currentStep == totalSteps - 1 {
                     completeOnboarding()
                 } else {
-                    withAnimation {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                         currentStep += 1
                     }
                 }
+            }) {
+                HStack(spacing: 10) {
+                    Text(currentStep == totalSteps - 1 ? "Complete" : "Continue")
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                    
+                    Image(systemName: currentStep == totalSteps - 1 ? "checkmark.circle.fill" : "arrow.right")
+                        .font(.system(size: 18, weight: .semibold))
+                }
+                .foregroundColor(.white)
+                .frame(height: 56)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            canProceed ?
+                            LinearGradient(
+                                colors: [
+                                    CommunallyTheme.primaryGreen,
+                                    CommunallyTheme.secondaryGreen
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ) :
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.85, green: 0.85, blue: 0.85),
+                                    Color(red: 0.8, green: 0.8, blue: 0.8)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .shadow(
+                            color: canProceed ? CommunallyTheme.primaryGreen.opacity(0.3) : .clear,
+                            radius: 15,
+                            x: 0,
+                            y: 8
+                        )
+                )
             }
-            .buttonStyle(CommunallyTheme.primaryButtonStyle)
             .disabled(!canProceed)
         }
-        .padding(CommunallyTheme.padding)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .background(
+            Color.white
+                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: -5)
+        )
     }
     
     // MARK: - Computed Properties

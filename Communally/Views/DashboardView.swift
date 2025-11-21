@@ -13,68 +13,218 @@ struct DashboardView: View {
     @State private var selectedTab = 0
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // Map Tab
-            MapTabView()
-                .tabItem {
-                    Image(systemName: "map.fill")
-                    Text("Map")
+        ZStack(alignment: .bottom) {
+            // Tab Content - Show the selected view with proper state management
+            Group {
+                switch selectedTab {
+                case 0:
+                    MapTabView()
+                        .id("map-\(selectedTab)")
+                case 1:
+                    if authManager.currentUser?.userType == .jobSeeker {
+                        JobSeekerOpportunitiesView()
+                            .id("opportunities-\(selectedTab)")
+                    } else {
+                        JobHirerOpportunitiesView()
+                            .id("opportunities-\(selectedTab)")
+                    }
+                case 2:
+                    if authManager.currentUser?.userType == .jobSeeker {
+                        MyApplicationsView()
+                            .id("applications-\(selectedTab)")
+                    } else {
+                        MessagingView()
+                            .id("messages-\(selectedTab)")
+                    }
+                case 3:
+                    if authManager.currentUser?.userType == .jobSeeker {
+                        MessagingView()
+                            .id("messages-\(selectedTab)")
+                    } else {
+                        ProfileView()
+                            .id("profile-\(selectedTab)")
+                    }
+                case 4:
+                    ProfileView()
+                        .id("profile-\(selectedTab)")
+                default:
+                    MapTabView()
+                        .id("map-default")
                 }
-                .tag(0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
+            // Custom Floating Tab Bar
+            FloatingTabBar(selectedTab: $selectedTab, userType: authManager.currentUser?.userType ?? .jobSeeker)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+        }
+        .ignoresSafeArea()
+        .onAppear {
+            // Start listening to messages when dashboard loads
+            if let userId = authManager.currentUser?.id {
+                MessageManager.shared.startListening(for: userId)
+            }
+        }
+    }
+}
+
+// MARK: - Floating Tab Bar
+struct FloatingTabBar: View {
+    @Binding var selectedTab: Int
+    let userType: UserType
+    @ObservedObject private var applicationManager = ApplicationManager.shared
+    @EnvironmentObject var authManager: AuthenticationManager
+    
+    private var acceptedApplicationsCount: Int {
+        guard let userId = authManager.currentUser?.id else { return 0 }
+        return applicationManager.getApplications(byUser: userId)
+            .filter { $0.status == .accepted }
+            .count
+    }
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            // Map Tab
+            FloatingTabItem(
+                icon: selectedTab == 0 ? "map.fill" : "map",
+                title: "Map",
+                isSelected: selectedTab == 0
+            ) {
+                if selectedTab != 0 {
+                    selectedTab = 0
+                }
+            }
             
             // Opportunities Tab
-            if authManager.currentUser?.userType == .jobSeeker {
-                JobSeekerOpportunitiesView()
-                    .tabItem {
-                        Image(systemName: "briefcase.fill")
-                        Text("Opportunities")
+            FloatingTabItem(
+                icon: selectedTab == 1 ? "briefcase.fill" : "briefcase",
+                title: userType == .jobSeeker ? "Browse" : "Opportunities",
+                isSelected: selectedTab == 1
+            ) {
+                if selectedTab != 1 {
+                    selectedTab = 1
+                }
+            }
+            
+            // My Applications Tab (Job Seekers Only)
+            if userType == .jobSeeker {
+                FloatingTabItem(
+                    icon: selectedTab == 2 ? "doc.text.fill" : "doc.text",
+                    title: "Applications",
+                    isSelected: selectedTab == 2,
+                    badgeCount: acceptedApplicationsCount
+                ) {
+                    if selectedTab != 2 {
+                        selectedTab = 2
                     }
-                    .tag(1)
-            } else {
-                JobHirerOpportunitiesView()
-                    .tabItem {
-                        Image(systemName: "briefcase.fill")
-                        Text("Opportunities")
-                    }
-                    .tag(1)
+                }
             }
             
             // Messages Tab
-            MessagingView()
-                .tabItem {
-                    Image(systemName: "message.fill")
-                    Text("Messages")
+            FloatingTabItem(
+                icon: userType == .jobSeeker ? 
+                    (selectedTab == 3 ? "message.fill" : "message") :
+                    (selectedTab == 2 ? "message.fill" : "message"),
+                title: "Messages",
+                isSelected: userType == .jobSeeker ? selectedTab == 3 : selectedTab == 2
+            ) {
+                if userType == .jobSeeker {
+                    if selectedTab != 3 {
+                        selectedTab = 3
+                    }
+                } else {
+                    if selectedTab != 2 {
+                        selectedTab = 2
+                    }
                 }
-                .tag(2)
+            }
             
             // Profile Tab
-            ProfileView()
-                .tabItem {
-                    Image(systemName: "person.fill")
-                    Text("Profile")
+            FloatingTabItem(
+                icon: userType == .jobSeeker ?
+                    (selectedTab == 4 ? "person.crop.circle.fill" : "person.crop.circle") :
+                    (selectedTab == 3 ? "person.crop.circle.fill" : "person.crop.circle"),
+                title: "Profile",
+                isSelected: userType == .jobSeeker ? selectedTab == 4 : selectedTab == 3
+            ) {
+                if userType == .jobSeeker {
+                    if selectedTab != 4 {
+                        selectedTab = 4
+                    }
+                } else {
+                    if selectedTab != 3 {
+                        selectedTab = 3
+                    }
                 }
-                .tag(3)
+            }
         }
-        .accentColor(CommunallyTheme.primaryGreen)
-        .onAppear {
-            print("🏠 DashboardView: Appeared")
-            print("🏠 DashboardView: User type = \(authManager.currentUser?.userType.rawValue ?? "unknown")")
-            
-            // Configure tab bar appearance
-            let appearance = UITabBarAppearance()
-            appearance.configureWithOpaqueBackground()
-            appearance.backgroundColor = UIColor.black.withAlphaComponent(0.95)
-            
-            // Set colors for tab bar items
-            appearance.stackedLayoutAppearance.normal.iconColor = UIColor.white.withAlphaComponent(0.6)
-            appearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor.white.withAlphaComponent(0.6)]
-            
-            appearance.stackedLayoutAppearance.selected.iconColor = UIColor(red: 0.7, green: 0.9, blue: 0.3, alpha: 1.0)
-            appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: UIColor(red: 0.7, green: 0.9, blue: 0.3, alpha: 1.0)]
-            
-            UITabBar.appearance().standardAppearance = appearance
-            UITabBar.appearance().scrollEdgeAppearance = appearance
+        .padding(.vertical, 12)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 28)
+                .fill(Color(red: 0.12, green: 0.12, blue: 0.12).opacity(0.95))
+                .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
+                .shadow(color: CommunallyTheme.primaryGreen.opacity(0.1), radius: 30, x: 0, y: 15)
+        )
+    }
+}
+
+struct FloatingTabItem: View {
+    let icon: String
+    let title: String
+    let isSelected: Bool
+    let badgeCount: Int?
+    let action: () -> Void
+    
+    init(icon: String, title: String, isSelected: Bool, badgeCount: Int? = nil, action: @escaping () -> Void) {
+        self.icon = icon
+        self.title = title
+        self.isSelected = isSelected
+        self.badgeCount = badgeCount
+        self.action = action
+    }
+    
+    var body: some View {
+        Button(action: {
+            let impactLight = UIImpactFeedbackGenerator(style: .light)
+            impactLight.impactOccurred()
+            action()
+        }) {
+            VStack(spacing: 4) {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: icon)
+                        .font(.system(size: 22, weight: isSelected ? .semibold : .regular))
+                        .foregroundColor(isSelected ? CommunallyTheme.primaryGreen : Color.white.opacity(0.6))
+                        .frame(height: 24)
+                    
+                    // Badge for notifications
+                    if let count = badgeCount, count > 0 {
+                        ZStack {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 16, height: 16)
+                            
+                            Text("\(min(count, 9))")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                        .offset(x: 8, y: -4)
+                    }
+                }
+                
+                Text(title)
+                    .font(.system(size: 10, weight: isSelected ? .semibold : .medium, design: .rounded))
+                    .foregroundColor(isSelected ? CommunallyTheme.primaryGreen : Color.white.opacity(0.6))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(isSelected ? CommunallyTheme.primaryGreen.opacity(0.15) : Color.clear)
+            )
         }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 
@@ -93,21 +243,21 @@ struct MapTabView: View {
     @State private var showOpportunityDetail = false
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                // Map View - Show opportunities for job seekers, only user location for hirers
-                Map(coordinateRegion: $region, annotationItems: allAnnotations) { annotation in
+        ZStack {
+            // Map View - Show opportunities for job seekers, only user location for hirers
+            Map(coordinateRegion: $region, annotationItems: allAnnotations) { annotation in
                     MapAnnotation(coordinate: annotation.coordinate) {
                         if let opportunity = annotation.opportunity {
                             // Opportunity pin
                             OpportunityPinView(opportunity: opportunity)
                                 .onTapGesture {
-                                    selectedOpportunity = opportunity
-                                    showOpportunityDetail = true
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        selectedOpportunity = opportunity
+                                    }
                                 }
                         } else {
                             // User location pin with profile picture
-                            UserLocationPinView(user: authManager.currentUser)
+                            UserLocationPinView(user: annotation.user)
                         }
                     }
                 }
@@ -143,43 +293,81 @@ struct MapTabView: View {
                 
                 // Map Controls Overlay
                 VStack {
+                    Spacer()
+                    
                     HStack {
                         Spacer()
                         
-                        // Location Button with improved design
+                        // Enhanced Location Button
                         Button(action: {
+                            let impactMed = UIImpactFeedbackGenerator(style: .medium)
+                            impactMed.impactOccurred()
                             centerMapOnUserLocation()
                         }) {
-                            Image(systemName: "location.fill")
-                                .font(.system(size: 22, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(width: 50, height: 50)
-                                .background(
-                                    Circle()
-                                        .fill(CommunallyTheme.buttonGradient)
-                                )
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white, lineWidth: 2)
-                                )
-                                .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+                            ZStack {
+                                // Outer glow
+                                Circle()
+                                    .fill(CommunallyTheme.primaryGreen.opacity(0.3))
+                                    .frame(width: 62, height: 62)
+                                    .blur(radius: 8)
+                                
+                                // Main button
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                CommunallyTheme.primaryGreen,
+                                                CommunallyTheme.secondaryGreen
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 56, height: 56)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.white.opacity(0.3), lineWidth: 2)
+                                    )
+                                    .shadow(color: .black.opacity(0.25), radius: 12, x: 0, y: 6)
+                                
+                                // Icon
+                                Image(systemName: "location.fill")
+                                    .font(.system(size: 24, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
                         }
-                        .scaleEffect(1.0)
-                        .animation(.easeInOut(duration: 0.1), value: UUID())
                         .padding(.trailing, 20)
-                        .padding(.top, 20)
+                        .padding(.bottom, 120) // Above floating tab bar
                     }
-                    
-                    Spacer()
+                }
+            
+            // Compact opportunity preview popup
+            VStack {
+                Spacer()
+                
+                if let opportunity = selectedOpportunity {
+                    CompactOpportunityPreview(opportunity: opportunity) {
+                        // Open full detail
+                        showOpportunityDetail = true
+                    } onClose: {
+                        // Close preview
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            selectedOpportunity = nil
+                        }
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.bottom, 120) // Above floating tab bar
+                    .padding(.horizontal, 16)
                 }
             }
-            .navigationTitle("Map")
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showOpportunityDetail) {
-                if let opportunity = selectedOpportunity {
-                    NavigationView {
-                        OpportunityDetailView(opportunity: opportunity)
-                    }
+            .allowsHitTesting(selectedOpportunity != nil)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedOpportunity != nil)
+        }
+        .ignoresSafeArea()
+        .sheet(isPresented: $showOpportunityDetail) {
+            if let opportunity = selectedOpportunity {
+                NavigationView {
+                    OpportunityDetailView(opportunity: opportunity)
                 }
             }
         }
@@ -209,12 +397,12 @@ struct MapTabView: View {
     
     // MARK: - Computed Properties
     
-    private var allAnnotations: [MapAnnotation] {
-        var annotations: [MapAnnotation] = []
+    private var allAnnotations: [MapPinData] {
+        var annotations: [MapPinData] = []
         
         // Add user location
         if let userLocation = userLocation {
-            annotations.append(MapAnnotation(
+            annotations.append(MapPinData(
                 coordinate: userLocation,
                 user: authManager.currentUser,
                 opportunity: nil
@@ -229,7 +417,7 @@ struct MapTabView: View {
                     latitude: opportunity.location.latitude,
                     longitude: opportunity.location.longitude
                 )
-                annotations.append(MapAnnotation(
+                annotations.append(MapPinData(
                     coordinate: coordinate,
                     user: nil,
                     opportunity: opportunity
@@ -243,7 +431,7 @@ struct MapTabView: View {
 
 // MARK: - Supporting Data Structures
 
-struct MapAnnotation: Identifiable {
+struct MapPinData: Identifiable {
     let id = UUID()
     let coordinate: CLLocationCoordinate2D
     let user: User?
@@ -253,56 +441,152 @@ struct MapAnnotation: Identifiable {
 struct UserLocationPinView: View {
     let user: User?
     @State private var isAnimating = false
+    @State private var isPulsing = false
     
     var body: some View {
-        VStack(spacing: 6) {
-            // Profile Picture or Default Image
-            Group {
-                if let profileImageData = user?.profileImageData,
-                   let uiImage = UIImage(data: profileImageData) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } else {
-                    // Default profile image
-                    Image(systemName: "person.circle.fill")
-                        .font(.system(size: 36))
-                        .foregroundColor(.white)
+        VStack(spacing: 0) {
+            ZStack {
+                // Outer pulsing rings
+                ForEach(0..<3) { index in
+                    Circle()
+                        .stroke(CommunallyTheme.primaryGreen.opacity(0.3), lineWidth: 2)
+                        .frame(width: 80, height: 80)
+                        .scaleEffect(isPulsing ? 1.5 + Double(index) * 0.3 : 1.0)
+                        .opacity(isPulsing ? 0.0 : 0.6)
+                        .animation(
+                            .easeOut(duration: 2.0)
+                            .repeatForever(autoreverses: false)
+                            .delay(Double(index) * 0.3),
+                            value: isPulsing
+                        )
                 }
+                
+                // Gradient glow
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                CommunallyTheme.primaryGreen.opacity(0.4),
+                                CommunallyTheme.primaryGreen.opacity(0.0)
+                            ],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 45
+                        )
+                    )
+                    .frame(width: 90, height: 90)
+                    .scaleEffect(isAnimating ? 1.1 : 0.9)
+                    .animation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true), value: isAnimating)
+                
+                // Profile Picture Container with enhanced styling
+                ZStack {
+                    // Shadow layer
+                    Circle()
+                        .fill(Color.black.opacity(0.2))
+                        .frame(width: 72, height: 72)
+                        .blur(radius: 8)
+                        .offset(y: 4)
+                    
+                    // White border with gradient accent
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 72, height: 72)
+                        .overlay(
+                            Circle()
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [
+                                            CommunallyTheme.primaryGreen,
+                                            CommunallyTheme.secondaryGreen
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 4
+                                )
+                        )
+                        .shadow(color: CommunallyTheme.primaryGreen.opacity(0.3), radius: 12, x: 0, y: 6)
+                    
+                    // Profile Picture or Default Image
+                    Group {
+                        if let profileImageData = user?.profileImageData,
+                           let uiImage = UIImage(data: profileImageData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } else {
+                            // Default profile image with gradient
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                CommunallyTheme.primaryGreen.opacity(0.2),
+                                                CommunallyTheme.secondaryGreen.opacity(0.2)
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 32, weight: .semibold))
+                                    .foregroundStyle(
+                                        LinearGradient(
+                                            colors: [
+                                                CommunallyTheme.primaryGreen,
+                                                CommunallyTheme.secondaryGreen
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                            }
+                        }
+                    }
+                    .frame(width: 64, height: 64)
+                    .clipShape(Circle())
+                }
+                .scaleEffect(isAnimating ? 1.03 : 1.0)
+                .animation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true), value: isAnimating)
             }
-            .frame(width: 60, height: 60)
-            .clipShape(Circle())
-            .overlay(
-                Circle()
-                    .stroke(Color.white, lineWidth: 4)
-            )
-            .overlay(
-                Circle()
-                    .stroke(CommunallyTheme.primaryGreen, lineWidth: 2)
-            )
-            .shadow(color: .black.opacity(0.4), radius: 8, x: 0, y: 4)
-            .scaleEffect(isAnimating ? 1.05 : 1.0)
-            .animation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true), value: isAnimating)
             
-            // Location indicator dot with subtle pulsing animation
-            Circle()
-                .fill(CommunallyTheme.primaryGreen)
-                .frame(width: 12, height: 12)
-                .overlay(
-                    Circle()
-                        .stroke(Color.white, lineWidth: 3)
-                )
-                .overlay(
-                    Circle()
-                        .stroke(CommunallyTheme.primaryGreen.opacity(0.2), lineWidth: 6)
-                        .scaleEffect(isAnimating ? 1.3 : 1.0)
-                        .opacity(isAnimating ? 0.0 : 0.4)
-                        .animation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true), value: isAnimating)
-                )
+            // Location indicator dot with enhanced pulsing
+            ZStack {
+                // Pulsing outer glow
+                Circle()
+                    .fill(CommunallyTheme.primaryGreen.opacity(0.3))
+                    .frame(width: 24, height: 24)
+                    .scaleEffect(isPulsing ? 1.8 : 1.0)
+                    .opacity(isPulsing ? 0.0 : 0.6)
+                    .animation(.easeOut(duration: 1.5).repeatForever(autoreverses: false), value: isPulsing)
+                
+                // White border
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 18, height: 18)
+                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                
+                // Inner gradient dot
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                CommunallyTheme.primaryGreen,
+                                CommunallyTheme.secondaryGreen
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 12, height: 12)
+            }
+            .offset(y: -4)
         }
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 isAnimating = true
+                isPulsing = true
             }
         }
     }
@@ -311,44 +595,104 @@ struct UserLocationPinView: View {
 
 struct OpportunityPinView: View {
     let opportunity: Opportunity
+    @State private var isPulsing = false
     
     var body: some View {
-        VStack(spacing: 2) {
-            // Icon background with category icon
+        VStack(spacing: 0) {
+            // Icon background with job type icon
             ZStack {
-                // Outer glow
+                // Outer pulsing glow
                 Circle()
-                    .fill(CommunallyTheme.primaryGreen.opacity(0.3))
-                    .frame(width: 52, height: 52)
-                    .blur(radius: 4)
+                    .fill(CommunallyTheme.primaryGreen.opacity(0.4))
+                    .frame(width: 68, height: 68)
+                    .blur(radius: 10)
+                    .scaleEffect(isPulsing ? 1.2 : 1.0)
+                    .opacity(isPulsing ? 0.3 : 0.6)
+                    .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: isPulsing)
                 
-                // Main circle
+                // Gradient ring
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                CommunallyTheme.primaryGreen.opacity(0.2),
+                                CommunallyTheme.secondaryGreen.opacity(0.2)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 56, height: 56)
+                    .blur(radius: 3)
+                
+                // Main circle with gradient border
                 Circle()
                     .fill(Color.white)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 50, height: 50)
                     .overlay(
                         Circle()
-                            .stroke(CommunallyTheme.primaryGreen, lineWidth: 2.5)
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [
+                                        CommunallyTheme.primaryGreen,
+                                        CommunallyTheme.secondaryGreen
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 3
+                            )
                     )
-                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                    .shadow(color: CommunallyTheme.primaryGreen.opacity(0.3), radius: 8, x: 0, y: 4)
+                    .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
                 
-                // Icon
+                // Job type icon with gradient
                 Image(systemName: iconForJobType(opportunity.jobType))
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(CommunallyTheme.primaryGreen)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [
+                                CommunallyTheme.primaryGreen,
+                                CommunallyTheme.secondaryGreen
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
             }
             
-            // Pointer triangle
-            Triangle()
-                .fill(Color.white)
-                .frame(width: 12, height: 8)
-                .overlay(
-                    Triangle()
-                        .stroke(CommunallyTheme.primaryGreen, lineWidth: 2)
-                )
-                .offset(y: -2)
+            // Enhanced pointer triangle
+            ZStack {
+                // Shadow for triangle
+                Triangle()
+                    .fill(Color.black.opacity(0.1))
+                    .frame(width: 16, height: 10)
+                    .offset(y: -1)
+                    .blur(radius: 2)
+                
+                Triangle()
+                    .fill(Color.white)
+                    .frame(width: 14, height: 9)
+                    .overlay(
+                        Triangle()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        CommunallyTheme.primaryGreen,
+                                        CommunallyTheme.secondaryGreen
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 2.5
+                            )
+                    )
+                    .offset(y: -2)
+            }
         }
-        .scaleEffect(1.0)
+        .onAppear {
+            isPulsing = true
+        }
     }
     
     private func iconForJobType(_ type: String) -> String {
@@ -379,125 +723,109 @@ struct Triangle: Shape {
     }
 }
 
-struct OpportunitiesTabView: View {
-    @EnvironmentObject var authManager: AuthenticationManager
-    
-    var body: some View {
-        NavigationView {
-            ZStack {
-                CommunallyTheme.backgroundGradient
-                    .ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(spacing: 20) {
-                        if authManager.currentUser?.userType == .jobSeeker {
-                            JobSeekerOpportunitiesView()
-                        } else {
-                            JobHirerOpportunitiesView()
-                        }
-                        
-                        Spacer(minLength: 100) // Space for tab bar
-                    }
-                    .padding(.horizontal, CommunallyTheme.padding)
-                }
-            }
-            .navigationTitle("Opportunities")
-            .navigationBarTitleDisplayMode(.large)
-        }
-    }
-}
 
 struct JobSeekerOpportunitiesView: View {
     @ObservedObject private var opportunityManager = OpportunityManager.shared
     @State private var searchText = ""
+    @State private var selectedOpportunity: Opportunity?
     
     private var allOpportunities: [Opportunity] {
         opportunityManager.getAllActiveOpportunities()
     }
     
     var body: some View {
-        ZStack {
-            Color(red: 0.97, green: 0.97, blue: 0.97).ignoresSafeArea()
-            
-            VStack(spacing: 20) {
-                // Enhanced Search Bar
-                HStack(spacing: 12) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(CommunallyTheme.primaryGreen)
-                    
-                    TextField("Search opportunities...", text: $searchText)
-                        .font(CommunallyTheme.bodyFont)
-                        .foregroundColor(CommunallyTheme.darkGray)
-                    
-                    if !searchText.isEmpty {
-                        Button(action: {
-                            searchText = ""
-                        }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 16))
-                                .foregroundColor(CommunallyTheme.darkGray.opacity(0.6))
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.white)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(CommunallyTheme.primaryGreen.opacity(0.3), lineWidth: 1)
-                        )
-                )
-                .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
-                
-                // Quick Filters
-                ScrollView(.horizontal, showsIndicators: false) {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Enhanced Search Bar
                     HStack(spacing: 12) {
-                        FilterChip(title: "All", isSelected: true) {}
-                        FilterChip(title: "Volunteer", isSelected: false) {}
-                        FilterChip(title: "Remote", isSelected: false) {}
-                    }
-                    .padding(.horizontal, CommunallyTheme.padding)
-                }
-                
-                // Opportunities List
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text("Available Opportunities")
-                            .font(CommunallyTheme.titleFont)
-                            .fontWeight(.bold)
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(CommunallyTheme.primaryGreen)
+                        
+                        TextField("Search opportunities...", text: $searchText)
+                            .font(CommunallyTheme.bodyFont)
                             .foregroundColor(CommunallyTheme.darkGray)
                         
-                        Spacer()
-                        
-                        Text("\(allOpportunities.count) found")
-                            .font(CommunallyTheme.captionFont)
-                            .foregroundColor(CommunallyTheme.darkGray.opacity(0.6))
-                    }
-                    
-                    if allOpportunities.isEmpty {
-                        EmptyStateView(
-                            title: "No opportunities yet",
-                            message: "Check back later for new job postings in your area",
-                            actionTitle: "Refresh",
-                            action: {}
-                        )
-                    } else {
-                        ForEach(allOpportunities) { opportunity in
-                            NavigationLink(destination: OpportunityDetailView(opportunity: opportunity)) {
-                                PostedOpportunityCard(opportunity: opportunity)
+                        if !searchText.isEmpty {
+                            Button(action: {
+                                searchText = ""
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(CommunallyTheme.darkGray.opacity(0.6))
                             }
-                            .buttonStyle(PlainButtonStyle())
                         }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(CommunallyTheme.primaryGreen.opacity(0.3), lineWidth: 1)
+                            )
+                    )
+                    .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+                    
+                    // Quick Filters
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            FilterChip(title: "All", isSelected: true) {}
+                            FilterChip(title: "Volunteer", isSelected: false) {}
+                            FilterChip(title: "Remote", isSelected: false) {}
+                        }
+                    }
+                    
+                    // Opportunities List
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Text("Available Opportunities")
+                                .font(CommunallyTheme.titleFont)
+                                .fontWeight(.bold)
+                                .foregroundColor(CommunallyTheme.darkGray)
+                            
+                            Spacer()
+                            
+                            Text("\(allOpportunities.count) found")
+                                .font(CommunallyTheme.captionFont)
+                                .foregroundColor(CommunallyTheme.darkGray.opacity(0.6))
+                        }
+                        
+                        if allOpportunities.isEmpty {
+                            EmptyStateView(
+                                title: "No opportunities yet",
+                                message: "Check back later for new job postings in your area",
+                                actionTitle: "Refresh",
+                                action: {}
+                            )
+                        } else {
+                            ForEach(allOpportunities) { opportunity in
+                                Button(action: {
+                                    selectedOpportunity = opportunity
+                                }) {
+                                    PostedOpportunityCard(opportunity: opportunity)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
+                    }
+                    
+                    Spacer(minLength: 120) // Space for floating tab bar
                 }
-                
-                Spacer()
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                .padding(.bottom, 40)
             }
-            .padding(.horizontal, CommunallyTheme.padding)
-            .padding(.top, 32)
+            .background(Color(red: 0.97, green: 0.97, blue: 0.97))
+            .navigationTitle("Opportunities")
+            .navigationBarTitleDisplayMode(.large)
+            .sheet(item: $selectedOpportunity) { opportunity in
+                NavigationView {
+                    OpportunityDetailView(opportunity: opportunity)
+                }
+            }
         }
     }
 }
@@ -532,6 +860,7 @@ struct JobHirerOpportunitiesView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @ObservedObject private var opportunityManager = OpportunityManager.shared
     @State private var showPostOpportunity = false
+    @State private var selectedOpportunity: Opportunity?
     
     private var userOpportunities: [Opportunity] {
         guard let userId = authManager.currentUser?.id else { return [] }
@@ -543,104 +872,147 @@ struct JobHirerOpportunitiesView: View {
     }
     
     var body: some View {
-        ZStack {
-            Color(red: 0.97, green: 0.97, blue: 0.97).ignoresSafeArea()
-            
-            VStack(spacing: 24) {
-                // Enhanced Post New Opportunity Button
-                Button(action: {
-                    showPostOpportunity = true
-                }) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 24, weight: .semibold))
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Enhanced Post New Opportunity Button with fun design
+                    Button(action: {
+                        let impactMed = UIImpactFeedbackGenerator(style: .medium)
+                        impactMed.impactOccurred()
+                        showPostOpportunity = true
+                    }) {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                // Outer glow
+                                Circle()
+                                    .fill(Color(red: 1.0, green: 0.5, blue: 0.3).opacity(0.3))
+                                    .frame(width: 62, height: 62)
+                                    .blur(radius: 8)
+                                
+                                // Icon background
+                                Circle()
+                                    .fill(Color.white.opacity(0.3))
+                                    .frame(width: 56, height: 56)
+                                
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 32, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Post New Opportunity")
+                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                                
+                                Text("Create a job or volunteer posting")
+                                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                                    .opacity(0.9)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "arrow.right.circle.fill")
+                                .font(.system(size: 28, weight: .semibold))
+                                .opacity(0.9)
+                        }
+                        .foregroundColor(.white)
+                        .padding(24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 24)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(red: 1.0, green: 0.45, blue: 0.3),  // Coral
+                                            Color(red: 1.0, green: 0.6, blue: 0.4)    // Light coral
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .shadow(color: Color(red: 1.0, green: 0.5, blue: 0.3).opacity(0.4), radius: 20, x: 0, y: 10)
+                                .shadow(color: .black.opacity(0.15), radius: 15, x: 0, y: 8)
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    // Quick Stats Cards with fun colors
+                    HStack(spacing: 16) {
+                        FunStatCard(
+                            title: "Active Posts",
+                            value: "\(userOpportunities.count)",
+                            icon: "briefcase.fill",
+                            gradientColors: [
+                                Color(red: 0.4, green: 0.7, blue: 1.0),   // Sky blue
+                                Color(red: 0.5, green: 0.8, blue: 1.0)    // Light blue
+                            ]
+                        )
                         
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Post New Opportunity")
+                        FunStatCard(
+                            title: "Applications",
+                            value: "\(totalApplicants)",
+                            icon: "person.2.fill",
+                            gradientColors: [
+                                Color(red: 0.6, green: 0.4, blue: 1.0),   // Purple
+                                Color(red: 0.7, green: 0.5, blue: 1.0)    // Light purple
+                            ]
+                        )
+                    }
+                    
+                    // Posted Opportunities Section
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Text("Your Posted Opportunities")
                                 .font(CommunallyTheme.titleFont)
                                 .fontWeight(.bold)
+                                .foregroundColor(CommunallyTheme.darkGray)
                             
-                            Text("Create a job or volunteer posting")
-                                .font(CommunallyTheme.captionFont)
-                                .opacity(0.8)
+                            Spacer()
+                            
+                            if !userOpportunities.isEmpty {
+                                Button(action: {}) {
+                                    Text("View All")
+                                        .font(CommunallyTheme.captionFont)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(CommunallyTheme.primaryGreen)
+                                }
+                            }
                         }
                         
-                        Spacer()
-                        
-                        Image(systemName: "arrow.right")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    .foregroundColor(.white)
-                    .padding(20)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(CommunallyTheme.buttonGradient)
-                    )
-                    .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 6)
-                }
-                .buttonStyle(PlainButtonStyle())
-                
-                // Quick Stats Cards
-                HStack(spacing: 16) {
-                    StatCard(
-                        title: "Active Posts",
-                        value: "\(userOpportunities.count)",
-                        icon: "briefcase.fill",
-                        color: CommunallyTheme.primaryGreen
-                    )
-                    
-                    StatCard(
-                        title: "Applications",
-                        value: "\(totalApplicants)",
-                        icon: "person.2.fill",
-                        color: CommunallyTheme.secondaryGreen
-                    )
-                }
-                
-                // Posted Opportunities Section
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text("Your Posted Opportunities")
-                            .font(CommunallyTheme.titleFont)
-                            .fontWeight(.bold)
-                            .foregroundColor(CommunallyTheme.darkGray)
-                        
-                        Spacer()
-                        
-                        if !userOpportunities.isEmpty {
-                            Button(action: {}) {
-                                Text("View All")
-                                    .font(CommunallyTheme.captionFont)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(CommunallyTheme.primaryGreen)
+                        if userOpportunities.isEmpty {
+                            EmptyStateView(
+                                title: "No opportunities posted",
+                                message: "Create your first job posting to get started and connect with local talent",
+                                actionTitle: "Refresh",
+                                action: {}
+                            )
+                        } else {
+                            ForEach(userOpportunities) { opportunity in
+                                Button(action: {
+                                    selectedOpportunity = opportunity
+                                }) {
+                                    PostedOpportunityCard(opportunity: opportunity)
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                         }
                     }
                     
-                    if userOpportunities.isEmpty {
-                        EmptyStateView(
-                            title: "No opportunities posted",
-                            message: "Create your first job posting to get started and connect with local talent",
-                            actionTitle: "Refresh",
-                            action: {}
-                        )
-                    } else {
-                        ForEach(userOpportunities) { opportunity in
-                            NavigationLink(destination: OpportunityDetailView(opportunity: opportunity)) {
-                                PostedOpportunityCard(opportunity: opportunity)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                        }
-                    }
+                    Spacer(minLength: 120) // Space for floating tab bar
                 }
-                
-                Spacer()
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                .padding(.bottom, 40)
             }
-            .padding(.horizontal, CommunallyTheme.padding)
-            .padding(.top, 32)
-        }
-        .sheet(isPresented: $showPostOpportunity) {
-            PostOpportunityView()
+            .background(Color(red: 0.97, green: 0.97, blue: 0.97))
+            .navigationTitle("Opportunities")
+            .navigationBarTitleDisplayMode(.large)
+            .sheet(isPresented: $showPostOpportunity) {
+                PostOpportunityView()
+            }
+            .sheet(item: $selectedOpportunity) { opportunity in
+                NavigationView {
+                    OpportunityDetailView(opportunity: opportunity)
+                }
+            }
         }
     }
 }
@@ -680,93 +1052,390 @@ struct StatCard: View {
     }
 }
 
+struct FunStatCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    let gradientColors: [Color]
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                // Glow effect
+                Circle()
+                    .fill(gradientColors[0].opacity(0.3))
+                    .frame(width: 56, height: 56)
+                    .blur(radius: 12)
+                
+                // Icon background
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: gradientColors,
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 52, height: 52)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            
+            Text(value)
+                .font(.system(size: 32, weight: .bold, design: .rounded))
+                .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
+            
+            Text(title)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
+        .padding(.horizontal, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color.white)
+                .shadow(color: gradientColors[0].opacity(0.2), radius: 15, x: 0, y: 8)
+                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 4)
+        )
+    }
+}
+
 struct PostedOpportunityCard: View {
     let opportunity: Opportunity
     
+    var cardColor: Color {
+        switch opportunity.jobType.lowercased() {
+        case "gardening": return Color(red: 0.4, green: 0.8, blue: 0.5)        // Green
+        case "pet care": return Color(red: 1.0, green: 0.6, blue: 0.4)         // Orange
+        case "tutoring": return Color(red: 0.4, green: 0.7, blue: 1.0)         // Blue
+        case "cleaning": return Color(red: 0.6, green: 0.4, blue: 1.0)         // Purple
+        case "moving help": return Color(red: 1.0, green: 0.5, blue: 0.5)      // Red
+        default: return Color(red: 0.5, green: 0.8, blue: 0.9)                 // Teal
+        }
+    }
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header
-            HStack {
-                Image(systemName: iconForJobType(opportunity.jobType))
-                    .font(.system(size: 26, weight: .semibold))
-                    .foregroundColor(CommunallyTheme.primaryGreen)
-                    .frame(width: 50, height: 50)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(CommunallyTheme.primaryGreen.opacity(0.15))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(CommunallyTheme.primaryGreen.opacity(0.3), lineWidth: 1)
-                            )
-                    )
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(opportunity.title)
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
-                        .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
+        VStack(alignment: .leading, spacing: 14) {
+            // Header - Profile + Title/Location + Pay
+            HStack(spacing: 14) {
+                // Profile picture
+                ZStack {
+                    // Outer glow
+                    Circle()
+                        .fill(cardColor.opacity(0.3))
+                        .frame(width: 66, height: 66)
+                        .blur(radius: 8)
                     
-                    Text(opportunity.locationName)
-                        .font(CommunallyTheme.captionFont)
-                        .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.4))
+                    if let imageData = opportunity.hirerImageData,
+                       let uiImage = UIImage(data: imageData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 58, height: 58)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .strokeBorder(
+                                        LinearGradient(
+                                            colors: [cardColor, cardColor.opacity(0.7)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 3
+                                    )
+                            )
+                            .shadow(color: cardColor.opacity(0.4), radius: 8, x: 0, y: 4)
+                    } else {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [cardColor, cardColor.opacity(0.7)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 58, height: 58)
+                                .shadow(color: cardColor.opacity(0.4), radius: 8, x: 0, y: 4)
+                            
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                
+                // Title and location
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(opportunity.title)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                        .lineLimit(1)
+                    
+                    HStack(spacing: 6) {
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(cardColor)
+                        
+                        Text(opportunity.locationName)
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.45))
+                            .lineLimit(1)
+                    }
                 }
                 
                 Spacer()
                 
+                // Pay amount
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(opportunity.displayPay)
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
-                        .foregroundColor(opportunity.isVolunteer ? CommunallyTheme.primaryGreen : Color(red: 0.15, green: 0.15, blue: 0.15))
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(
+                            opportunity.isVolunteer ? 
+                            LinearGradient(
+                                colors: [cardColor, cardColor.opacity(0.7)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ) :
+                            LinearGradient(
+                                colors: [Color(red: 0.1, green: 0.1, blue: 0.1), Color(red: 0.2, green: 0.2, blue: 0.2)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                     
                     Text(opportunity.timeAgo)
-                        .font(CommunallyTheme.captionFont)
-                        .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.4))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
                 }
             }
             
             // Description
             Text(opportunity.description)
                 .font(.system(size: 14, weight: .regular, design: .rounded))
-                .foregroundColor(Color(red: 0.25, green: 0.25, blue: 0.25))
+                .foregroundColor(Color(red: 0.3, green: 0.3, blue: 0.3))
                 .lineLimit(2)
+                .lineSpacing(4)
             
-            // Status and Stats
-            HStack {
+            // Footer - Status + Job Icon + Applicants
+            HStack(spacing: 12) {
+                // Status badge
                 HStack(spacing: 6) {
                     Circle()
                         .fill(opportunity.statusColor)
                         .frame(width: 8, height: 8)
                     
                     Text(opportunity.statusDisplay)
-                        .font(CommunallyTheme.captionFont)
-                        .foregroundColor(CommunallyTheme.darkGray.opacity(0.7))
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color(red: 0.35, green: 0.35, blue: 0.35))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(opportunity.statusColor.opacity(0.15))
+                )
+                
+                Spacer()
+                
+                // Job type icon
+                ZStack {
+                    Circle()
+                        .fill(cardColor.opacity(0.15))
+                        .frame(width: 34, height: 34)
+                    
+                    Image(systemName: iconForJobType(opportunity.jobType))
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(cardColor)
+                }
+                
+                // Applicants count
+                HStack(spacing: 6) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(cardColor)
+                    
+                    Text("\(opportunity.applicantCount)")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.2, green: 0.2, blue: 0.2))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(cardColor.opacity(0.15))
+                )
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color.white)
+                .shadow(color: cardColor.opacity(0.25), radius: 20, x: 0, y: 10)
+                .shadow(color: .black.opacity(0.1), radius: 15, x: 0, y: 8)
+        )
+    }
+    
+    private func iconForJobType(_ type: String) -> String {
+        switch type.lowercased() {
+        case "gardening": return "leaf.fill"
+        case "pet care": return "pawprint.fill"
+        case "tutoring": return "book.fill"
+        case "moving help": return "box.truck.fill"
+        case "painting": return "paintbrush.fill"
+        case "babysitting": return "figure.2.and.child.holdinghands"
+        case "event help": return "calendar.badge.plus"
+        case "cleaning": return "sparkles"
+        case "delivery": return "shippingbox.fill"
+        default: return "briefcase.fill"
+        }
+    }
+}
+
+// MARK: - Compact Opportunity Preview (Map Popup)
+struct CompactOpportunityPreview: View {
+    let opportunity: Opportunity
+    let onViewDetails: () -> Void
+    let onClose: () -> Void
+    
+    private var cardColor: Color {
+        switch opportunity.jobType.lowercased() {
+        case "gardening": return Color(red: 0.4, green: 0.8, blue: 0.5)
+        case "pet care": return Color(red: 1.0, green: 0.6, blue: 0.4)
+        case "tutoring": return Color(red: 0.4, green: 0.7, blue: 1.0)
+        case "cleaning": return Color(red: 0.6, green: 0.4, blue: 1.0)
+        case "moving help": return Color(red: 1.0, green: 0.5, blue: 0.5)
+        default: return Color(red: 0.5, green: 0.8, blue: 0.9)
+        }
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                // Hirer profile picture
+                if let imageData = opportunity.hirerImageData,
+                   let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 50, height: 50)
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .strokeBorder(cardColor, lineWidth: 2.5)
+                        )
+                } else {
+                    ZStack {
+                        Circle()
+                            .fill(cardColor.opacity(0.2))
+                            .frame(width: 50, height: 50)
+                        
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundColor(cardColor)
+                    }
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(opportunity.title)
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                        .lineLimit(1)
+                    
+                    HStack(spacing: 6) {
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(cardColor)
+                        
+                        Text(opportunity.locationName)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.45))
+                            .lineLimit(1)
+                    }
                 }
                 
                 Spacer()
                 
-                HStack(spacing: 4) {
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(CommunallyTheme.darkGray.opacity(0.6))
+                // Job type icon
+                ZStack {
+                    Circle()
+                        .fill(cardColor.opacity(0.15))
+                        .frame(width: 38, height: 38)
                     
-                    Text("\(opportunity.applicantCount) applicant\(opportunity.applicantCount == 1 ? "" : "s")")
-                        .font(CommunallyTheme.captionFont)
-                        .foregroundColor(CommunallyTheme.darkGray.opacity(0.7))
+                    Image(systemName: iconForJobType(opportunity.jobType))
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(cardColor)
+                }
+                
+                // Close button
+                Button(action: onClose) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.6))
                 }
             }
+            .padding(16)
+            
+            // Divider
+            Rectangle()
+                .fill(Color(red: 0.9, green: 0.9, blue: 0.9))
+                .frame(height: 1)
+            
+            // Details section
+            HStack(spacing: 16) {
+                // Pay
+                HStack(spacing: 6) {
+                    Image(systemName: opportunity.isVolunteer ? "heart.fill" : "dollarsign.circle.fill")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(cardColor)
+                    
+                    Text(opportunity.displayPay)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.2, green: 0.2, blue: 0.2))
+                }
+                
+                Spacer()
+                
+                // View Details button
+                Button(action: {
+                    let impactMed = UIImpactFeedbackGenerator(style: .medium)
+                    impactMed.impactOccurred()
+                    onViewDetails()
+                }) {
+                    HStack(spacing: 6) {
+                        Text("View Details")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                        
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        LinearGradient(
+                            colors: [cardColor, cardColor.opacity(0.8)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(20)
+                    .shadow(color: cardColor.opacity(0.4), radius: 8, x: 0, y: 4)
+                }
+            }
+            .padding(16)
         }
-        .padding(18)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(red: 1.0, green: 1.0, blue: 1.0))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(CommunallyTheme.primaryGreen.opacity(0.4), lineWidth: 2)
-                )
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
+                .shadow(color: cardColor.opacity(0.2), radius: 15, x: 0, y: 8)
         )
-        .compositingGroup()
-        .cornerRadius(16)
-        .shadow(color: CommunallyTheme.primaryGreen.opacity(0.3), radius: 16, x: 0, y: 8)
-        .shadow(color: .black.opacity(0.25), radius: 10, x: 0, y: 5)
     }
     
     private func iconForJobType(_ type: String) -> String {

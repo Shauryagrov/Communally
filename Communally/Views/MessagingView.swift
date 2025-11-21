@@ -2,250 +2,263 @@
 //  MessagingView.swift
 //  Communally
 //
-//  Created by Madhur Grover on 10/2/25.
+//  Shows all active chat conversations for accepted jobs
 //
 
 import SwiftUI
-import GoogleSignIn
 
 struct MessagingView: View {
-    @State private var conversations: [Conversation] = []
+    @EnvironmentObject var authManager: AuthenticationManager
+    @ObservedObject private var messageManager = MessageManager.shared
+    @ObservedObject private var opportunityManager = OpportunityManager.shared
     @State private var selectedConversation: Conversation?
     
+    private var conversations: [Conversation] {
+        messageManager.conversations
+    }
+    
+    private var totalUnreadCount: Int {
+        guard let userId = authManager.currentUser?.id else { return 0 }
+        return conversations.reduce(0) { $0 + ($1.participantIds.contains(userId) ? $1.unreadCount : 0) }
+    }
+    
     var body: some View {
-        ZStack {
-            CommunallyTheme.backgroundGradient
+        NavigationView {
+            ZStack {
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.97, green: 0.99, blue: 0.95),
+                        Color.white,
+                        Color(red: 0.98, green: 1.0, blue: 0.96)
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
                 .ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                // Header
-                HStack {
-                    Text("Messages")
-                        .font(CommunallyTheme.titleFont)
-                        .foregroundColor(CommunallyTheme.darkGray)
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        // Start new conversation
-                    }) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(CommunallyTheme.primaryGreen)
-                    }
-                }
-                .padding(.horizontal, CommunallyTheme.padding)
-                .padding(.top, 10)
                 
                 if conversations.isEmpty {
                     // Empty state
-                    VStack(spacing: 20) {
-                        Image(systemName: "message")
-                            .font(.system(size: 60))
-                            .foregroundColor(CommunallyTheme.primaryGreen)
-                        
-                        Text("No messages yet")
-                            .font(CommunallyTheme.subtitleFont)
-                            .foregroundColor(CommunallyTheme.darkGray)
-                        
-                        Text("Start a conversation with someone you've connected with")
-                            .font(CommunallyTheme.bodyFont)
-                            .foregroundColor(CommunallyTheme.darkGray.opacity(0.7))
-                            .multilineTextAlignment(.center)
-                        
-                        Button("Find Opportunities") {
-                            // Navigate to opportunities
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(CommunallyTheme.buttonGradient)
-                        .cornerRadius(CommunallyTheme.cornerRadius)
-                    }
-                    .padding(CommunallyTheme.padding)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    emptyStateView
                 } else {
                     // Conversations list
                     ScrollView {
-                        LazyVStack(spacing: 12) {
+                        VStack(spacing: 14) {
                             ForEach(conversations) { conversation in
-                                ConversationRow(conversation: conversation) {
+                                ConversationCard(
+                                    conversation: conversation,
+                                    currentUserId: authManager.currentUser?.id ?? "",
+                                    opportunity: opportunityManager.opportunities.first { $0.safeId == conversation.opportunityId }
+                                ) {
                                     selectedConversation = conversation
                                 }
                             }
                         }
-                        .padding(CommunallyTheme.padding)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .padding(.bottom, 100)
                     }
                 }
             }
+            .navigationTitle("Messages")
+            .navigationBarTitleDisplayMode(.large)
+            .sheet(item: $selectedConversation) { conversation in
+                NavigationView {
+                    ChatView(conversation: conversation)
+                }
+            }
+            .onAppear {
+                // Start listening when view appears
+                if let userId = authManager.currentUser?.id {
+                    messageManager.startListening(for: userId)
+                }
+            }
         }
-        .sheet(item: $selectedConversation) { conversation in
-            ChatView(conversation: conversation)
+    }
+    
+    // MARK: - Empty State
+    private var emptyStateView: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            
+            ZStack {
+                Circle()
+                    .fill(Color(red: 0.6, green: 0.4, blue: 1.0).opacity(0.1))
+                    .frame(width: 120, height: 120)
+                
+                Image(systemName: "bubble.left.and.bubble.right.fill")
+                    .font(.system(size: 56, weight: .medium))
+                    .foregroundColor(Color(red: 0.6, green: 0.4, blue: 1.0))
+            }
+            
+            VStack(spacing: 12) {
+                Text("No Messages Yet")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
+                
+                Text("When a hirer accepts your application,\na chat will automatically be created here.")
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+                    .padding(.horizontal, 40)
+            }
+            
+            Spacer()
         }
     }
 }
 
-
-struct ConversationRow: View {
+// MARK: - Conversation Card
+struct ConversationCard: View {
     let conversation: Conversation
-    let action: () -> Void
+    let currentUserId: String
+    let opportunity: Opportunity?
+    let onTap: () -> Void
+    
+    private var otherUserName: String {
+        conversation.otherUserName(currentUserId: currentUserId)
+    }
+    
+    private var otherUserImageData: Data? {
+        conversation.otherUserImageData(currentUserId: currentUserId)
+    }
     
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 15) {
-                // Profile image
-                Circle()
-                    .fill(CommunallyTheme.lightGray)
-                    .frame(width: 50, height: 50)
-                    .overlay(
-                        Image(systemName: "person.fill")
-                            .foregroundColor(CommunallyTheme.primaryGreen)
-                    )
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(conversation.otherUser.fullName)
-                            .font(CommunallyTheme.bodyFont)
-                            .fontWeight(.semibold)
-                            .foregroundColor(CommunallyTheme.darkGray)
+        Button(action: {
+            let impactMed = UIImpactFeedbackGenerator(style: .light)
+            impactMed.impactOccurred()
+            onTap()
+        }) {
+            VStack(spacing: 0) {
+                HStack(spacing: 14) {
+                    // Profile picture
+                    ZStack {
+                        Circle()
+                            .fill(Color(red: 0.6, green: 0.4, blue: 1.0).opacity(0.2))
+                            .frame(width: 56, height: 56)
                         
-                        Spacer()
+                        if let imageData = otherUserImageData,
+                           let uiImage = UIImage(data: imageData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 56, height: 56)
+                                .clipShape(Circle())
+                        } else {
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 26, weight: .medium))
+                                .foregroundColor(Color(red: 0.6, green: 0.4, blue: 1.0))
+                        }
                         
-                        Text(conversation.lastMessageAt, style: .time)
-                            .font(CommunallyTheme.captionFont)
-                            .foregroundColor(CommunallyTheme.darkGray.opacity(0.7))
+                        // Unread badge
+                        if conversation.unreadCount > 0 {
+                            VStack {
+                                HStack {
+                                    Spacer()
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.red)
+                                            .frame(width: 22, height: 22)
+                                        
+                                        Text("\(conversation.unreadCount)")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                                Spacer()
+                            }
+                            .frame(width: 56, height: 56)
+                        }
                     }
                     
-                    HStack {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(otherUserName)
+                                .font(.system(size: 17, weight: .bold, design: .rounded))
+                                .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
+                                .lineLimit(1)
+                            
+                            Spacer()
+                            
+                            Text(conversation.timeAgo)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.6))
+                        }
+                        
                         Text(conversation.lastMessage)
-                            .font(CommunallyTheme.captionFont)
-                            .foregroundColor(CommunallyTheme.darkGray.opacity(0.8))
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                            .lineLimit(2)
+                            .lineSpacing(2)
+                    }
+                }
+                .padding(16)
+                
+                // Job context footer
+                if let opp = opportunity {
+                    Rectangle()
+                        .fill(Color(red: 0.95, green: 0.95, blue: 0.95))
+                        .frame(height: 1)
+                    
+                    HStack(spacing: 10) {
+                        ZStack {
+                            Circle()
+                                .fill(Color(red: 0.6, green: 0.4, blue: 1.0).opacity(0.1))
+                                .frame(width: 28, height: 28)
+                            
+                            Image(systemName: iconForJobType(opp.jobType))
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(Color(red: 0.6, green: 0.4, blue: 1.0))
+                        }
+                        
+                        Text(opp.title)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.4))
                             .lineLimit(1)
                         
                         Spacer()
                         
-                        if conversation.unreadCount > 0 {
-                            Text("\(conversation.unreadCount)")
-                                .font(CommunallyTheme.captionFont)
-                                .foregroundColor(.white)
-                                .frame(minWidth: 20, minHeight: 20)
-                                .background(CommunallyTheme.primaryGreen)
-                                .clipShape(Circle())
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(opp.statusColor)
+                                .frame(width: 6, height: 6)
+                            
+                            Text(opp.statusDisplay)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
                         }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                 }
             }
-            .padding(CommunallyTheme.smallPadding)
-            .background(CommunallyTheme.white)
-            .cornerRadius(CommunallyTheme.cornerRadius)
-            .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+            .background(
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color.white)
+                    .shadow(color: Color(red: 0.6, green: 0.4, blue: 1.0).opacity(0.08), radius: 12, x: 0, y: 6)
+                    .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
+            )
         }
-    }
-}
-
-struct ChatView: View {
-    let conversation: Conversation
-    @State private var messageText = ""
-    @State private var messages: [Message] = []
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Messages
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(messages) { message in
-                            MessageBubble(message: message)
-                        }
-                    }
-                    .padding(CommunallyTheme.padding)
-                }
-                
-                // Message input
-                HStack(spacing: 12) {
-                    TextField("Type a message...", text: $messageText)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                    
-                    Button(action: sendMessage) {
-                        Image(systemName: "paperplane.fill")
-                            .foregroundColor(.white)
-                            .frame(width: 40, height: 40)
-                            .background(CommunallyTheme.buttonGradient)
-                            .clipShape(Circle())
-                    }
-                    .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-                .padding(CommunallyTheme.padding)
-                .background(CommunallyTheme.white)
-            }
-            .navigationTitle(conversation.otherUser.fullName)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
+        .buttonStyle(PlainButtonStyle())
     }
     
-    private func sendMessage() {
-        let message = Message(
-            id: UUID().uuidString,
-            text: messageText,
-            senderId: "current_user", // This would be the current user's ID
-            timestamp: Date(),
-            isFromCurrentUser: true
-        )
-        
-        messages.append(message)
-        messageText = ""
-    }
-}
-
-struct Message: Identifiable {
-    let id: String
-    let text: String
-    let senderId: String
-    let timestamp: Date
-    let isFromCurrentUser: Bool
-}
-
-struct MessageBubble: View {
-    let message: Message
-    
-    var body: some View {
-        HStack {
-            if message.isFromCurrentUser {
-                Spacer()
-            }
-            
-            VStack(alignment: message.isFromCurrentUser ? .trailing : .leading, spacing: 4) {
-                Text(message.text)
-                    .font(CommunallyTheme.bodyFont)
-                    .foregroundColor(message.isFromCurrentUser ? .white : CommunallyTheme.darkGray)
-                    .padding(CommunallyTheme.smallPadding)
-                    .background(
-                        message.isFromCurrentUser ? 
-                        AnyView(CommunallyTheme.buttonGradient) : 
-                        AnyView(CommunallyTheme.lightGray)
-                    )
-                    .cornerRadius(CommunallyTheme.cornerRadius)
-                
-                Text(message.timestamp, style: .time)
-                    .font(CommunallyTheme.captionFont)
-                    .foregroundColor(CommunallyTheme.darkGray.opacity(0.6))
-            }
-            
-            if !message.isFromCurrentUser {
-                Spacer()
-            }
+    private func iconForJobType(_ type: String) -> String {
+        switch type.lowercased() {
+        case "gardening": return "leaf.fill"
+        case "pet care": return "pawprint.fill"
+        case "tutoring": return "book.fill"
+        case "moving help": return "box.truck.fill"
+        case "painting": return "paintbrush.fill"
+        case "babysitting": return "figure.2.and.child.holdinghands"
+        case "event help": return "calendar.badge.plus"
+        case "cleaning": return "sparkles"
+        case "delivery": return "shippingbox.fill"
+        default: return "briefcase.fill"
         }
     }
 }
 
 #Preview {
     MessagingView()
+        .environmentObject(AuthenticationManager.shared)
 }

@@ -59,13 +59,3 @@ struct JobOpportunity: Identifiable, Codable {
     let createdAt: Date
     let isActive: Bool
 }
-
-struct Conversation: Identifiable, Codable {
-    let id: String
-    let participants: [String] // User IDs
-    let otherUser: User // The other participant (not current user)
-    let lastMessage: String
-    let lastMessageAt: Date
-    let unreadCount: Int
-    let createdAt: Date
-}

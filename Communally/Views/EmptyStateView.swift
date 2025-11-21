@@ -14,63 +14,129 @@ struct EmptyStateView: View {
     let action: () -> Void
     
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 32) {
             Spacer()
             
-            VStack(spacing: 20) {
+            VStack(spacing: 24) {
+                ZStack {
+                    // Outer glow
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.5, green: 0.8, blue: 0.9).opacity(0.3),
+                                    Color(red: 0.6, green: 0.7, blue: 1.0).opacity(0.2)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 140, height: 140)
+                        .blur(radius: 20)
+                    
+                    // Icon background
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.5, green: 0.8, blue: 0.9),
+                                    Color(red: 0.6, green: 0.7, blue: 1.0)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 100, height: 100)
+                        .shadow(color: Color(red: 0.5, green: 0.8, blue: 0.9).opacity(0.4), radius: 15, x: 0, y: 8)
+                    
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 60))
-                    .foregroundColor(CommunallyTheme.primaryGreen.opacity(0.6))
+                        .font(.system(size: 48, weight: .semibold))
+                        .foregroundColor(.white)
+                }
                 
                 VStack(spacing: 12) {
                     Text(title)
-                        .font(CommunallyTheme.titleFont)
-                        .fontWeight(.bold)
-                        .foregroundColor(CommunallyTheme.darkGray)
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
                         .multilineTextAlignment(.center)
                     
                     Text(message)
-                        .font(CommunallyTheme.bodyFont)
-                        .foregroundColor(CommunallyTheme.darkGray.opacity(0.7))
+                        .font(.system(size: 16, weight: .regular, design: .rounded))
+                        .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.45))
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 20)
+                        .lineSpacing(4)
+                        .padding(.horizontal, 24)
                 }
             }
             
-            VStack(spacing: 16) {
-                Button(action: action) {
+            VStack(spacing: 14) {
+                Button(action: {
+                    let impactMed = UIImpactFeedbackGenerator(style: .medium)
+                    impactMed.impactOccurred()
+                    action()
+                }) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 16, weight: .semibold))
+                        
                     Text(actionTitle)
-                        .font(CommunallyTheme.bodyFont)
-                        .fontWeight(.semibold)
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                    }
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .frame(height: CommunallyTheme.buttonHeight)
-                        .background(CommunallyTheme.buttonGradient)
-                        .cornerRadius(CommunallyTheme.cornerRadius)
+                    .frame(height: 54)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.5, green: 0.8, blue: 0.9),
+                                        Color(red: 0.6, green: 0.7, blue: 1.0)
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .shadow(color: Color(red: 0.5, green: 0.8, blue: 0.9).opacity(0.4), radius: 15, x: 0, y: 8)
+                    )
                 }
                 
                 Button(action: {
+                    let impactLight = UIImpactFeedbackGenerator(style: .light)
+                    impactLight.impactOccurred()
                     // Reset filters action
                 }) {
                     Text("Reset Filters")
-                        .font(CommunallyTheme.bodyFont)
-                        .fontWeight(.medium)
-                        .foregroundColor(CommunallyTheme.primaryGreen)
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color(red: 0.5, green: 0.8, blue: 0.9))
                         .frame(maxWidth: .infinity)
-                        .frame(height: CommunallyTheme.buttonHeight)
-                        .background(Color.white)
-                        .cornerRadius(CommunallyTheme.cornerRadius)
+                        .frame(height: 54)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.white)
                         .overlay(
-                            RoundedRectangle(cornerRadius: CommunallyTheme.cornerRadius)
-                                .stroke(CommunallyTheme.primaryGreen, lineWidth: 1)
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .strokeBorder(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color(red: 0.5, green: 0.8, blue: 0.9),
+                                                    Color(red: 0.6, green: 0.7, blue: 1.0)
+                                                ],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            ),
+                                            lineWidth: 2
+                                        )
+                                )
+                                .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
                         )
                 }
             }
-            .padding(.horizontal, CommunallyTheme.padding)
+            .padding(.horizontal, 24)
             
             Spacer()
         }
-        .padding(CommunallyTheme.padding)
+        .padding(24)
     }
 }
 

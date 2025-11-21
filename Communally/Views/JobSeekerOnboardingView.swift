@@ -33,32 +33,75 @@ struct JobSeekerOnboardingView: View {
     
     var body: some View {
         ZStack {
-            CommunallyTheme.white
+            // Soft gradient background
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.97, green: 0.99, blue: 0.95),
+                    Color.white,
+                    Color(red: 0.98, green: 1.0, blue: 0.96)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
                 .ignoresSafeArea()
             
-            VStack(spacing: 20) {
+            VStack(spacing: 0) {
+                // Top navigation bar
+                VStack(spacing: 16) {
                 // Back button to return to user type selection
                 HStack {
                     Button(action: {
+                            let impactLight = UIImpactFeedbackGenerator(style: .light)
+                            impactLight.impactOccurred()
                         dismiss()
                     }) {
-                        HStack(spacing: 8) {
+                            HStack(spacing: 6) {
                             Image(systemName: "chevron.left")
-                                .font(.system(size: 16, weight: .medium))
-                            Text("← Back to Selection")
-                                .font(.system(size: 16, weight: .medium))
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Back to Selection")
+                                    .font(.system(size: 15, weight: .medium, design: .rounded))
                         }
                         .foregroundColor(CommunallyTheme.primaryGreen)
                     }
                     Spacer()
+                        
+                        // Step indicator
+                        Text("Step \(currentStep + 1) of \(totalSteps)")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
                 }
-                .padding(.horizontal)
-                .padding(.top, 10)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
                 
-                // Progress indicator
-                ProgressView(value: Double(currentStep + 1), total: Double(totalSteps))
-                    .progressViewStyle(LinearProgressViewStyle(tint: CommunallyTheme.primaryGreen))
-                    .padding(.horizontal)
+                    // Enhanced Progress Bar
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            // Background track
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(red: 0.93, green: 0.93, blue: 0.93))
+                                .frame(height: 6)
+                            
+                            // Progress fill with gradient
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            CommunallyTheme.primaryGreen,
+                                            CommunallyTheme.secondaryGreen
+                                        ],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: geometry.size.width * CGFloat(currentStep + 1) / CGFloat(totalSteps), height: 6)
+                                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: currentStep)
+                        }
+                    }
+                    .frame(height: 6)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 8)
+                }
+                .background(Color.white)
                 
                 // Step content
                 Group {
@@ -79,42 +122,98 @@ struct JobSeekerOnboardingView: View {
                 }
                 .frame(maxHeight: .infinity)
                 
-                // Navigation buttons
-                HStack {
+                // Enhanced Navigation buttons
+                HStack(spacing: 12) {
                     if currentStep > 0 {
-                        Button("← Back") {
-                            withAnimation {
+                        Button(action: {
+                            let impactLight = UIImpactFeedbackGenerator(style: .light)
+                            impactLight.impactOccurred()
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                                 currentStep -= 1
                             }
+                        }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("Back")
+                                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    }
+                            .foregroundColor(Color(red: 0.3, green: 0.3, blue: 0.3))
+                            .frame(height: 56)
+                            .frame(maxWidth: currentStep == totalSteps - 1 ? .infinity : 100)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color.white)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .strokeBorder(Color(red: 0.85, green: 0.85, blue: 0.85), lineWidth: 2)
+                                    )
+                            )
                         }
-                        .foregroundColor(CommunallyTheme.primaryGreen)
-                        .font(.system(size: 16, weight: .medium))
                     }
                     
-                    Spacer()
-                    
-                    Button(currentStep == totalSteps - 1 ? "✨ Complete" : "Next →") {
+                    Button(action: {
+                        let impactMed = UIImpactFeedbackGenerator(style: .medium)
+                        impactMed.impactOccurred()
+                        
                         print("🔘 Button pressed - currentStep: \(currentStep), totalSteps: \(totalSteps)")
                         if currentStep == totalSteps - 1 {
                             print("🔘 Complete button pressed - calling completeOnboarding()")
                             completeOnboarding()
                         } else {
                             print("🔘 Next button pressed - moving to step \(currentStep + 1)")
-                            withAnimation {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                                 currentStep += 1
                             }
                         }
+                    }) {
+                        HStack(spacing: 10) {
+                            Text(currentStep == totalSteps - 1 ? "Complete" : "Continue")
+                                .font(.system(size: 17, weight: .bold, design: .rounded))
+                            
+                            Image(systemName: currentStep == totalSteps - 1 ? "checkmark.circle.fill" : "arrow.right")
+                                .font(.system(size: 18, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .frame(height: 56)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(
+                                    canProceed ?
+                                    LinearGradient(
+                                        colors: [
+                                            CommunallyTheme.primaryGreen,
+                                            CommunallyTheme.secondaryGreen
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ) :
+                                    LinearGradient(
+                                        colors: [
+                                            Color(red: 0.85, green: 0.85, blue: 0.85),
+                                            Color(red: 0.8, green: 0.8, blue: 0.8)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .shadow(
+                                    color: canProceed ? CommunallyTheme.primaryGreen.opacity(0.3) : .clear,
+                                    radius: 15,
+                                    x: 0,
+                                    y: 8
+                                )
+                        )
                     }
                     .disabled(!canProceed)
-                    .foregroundColor(canProceed ? .white : .gray)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(canProceed ? CommunallyTheme.primaryGreen : Color.gray.opacity(0.3))
-                    .cornerRadius(8)
-                    .font(.system(size: 16, weight: .semibold))
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 20)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 16)
+                .background(
+                    Color.white
+                        .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: -5)
+                )
             }
         }
         .navigationTitle("✨ Complete Your Profile")

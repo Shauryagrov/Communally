@@ -17,6 +17,8 @@ struct OpportunityDetailView: View {
     
     @State private var showingApplicants = false
     @State private var showingCompletionConfirm = false
+    @State private var selectedApplicant: JobApplication?
+    @State private var showingAcceptConfirm = false
     
     private var isHirer: Bool {
         authManager.currentUser?.id == opportunity.hirerId
@@ -33,12 +35,9 @@ struct OpportunityDetailView: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // Header
-                headerSection
-                
-                // Status Badge
-                statusBadge
+            VStack(alignment: .leading, spacing: 20) {
+                // Combined Header with Posted By
+                combinedHeaderSection
                 
                 // Pay Info
                 payInfoSection
@@ -61,7 +60,18 @@ struct OpportunityDetailView: View {
             }
             .padding(20)
         }
-        .background(CommunallyTheme.backgroundGradient.ignoresSafeArea())
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.97, green: 0.99, blue: 0.95),
+                    Color.white,
+                    Color(red: 0.98, green: 1.0, blue: 0.96)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+        )
         .navigationTitle("Opportunity Details")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingApplicants) {
@@ -81,169 +91,341 @@ struct OpportunityDetailView: View {
         }
     }
     
-    // MARK: - Header Section
-    private var headerSection: some View {
-        HStack(alignment: .top, spacing: 16) {
-            Image(systemName: iconForJobType(opportunity.jobType))
-                .font(.system(size: 32))
-                .foregroundColor(CommunallyTheme.primaryGreen)
-                .frame(width: 60, height: 60)
-                .background(CommunallyTheme.primaryGreen.opacity(0.1))
-                .cornerRadius(12)
+    // MARK: - Combined Header Section
+    private var combinedHeaderSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Title and Job Type Icon
+            HStack(spacing: 14) {
+                // Job type icon
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.6, green: 0.4, blue: 1.0),
+                                    Color(red: 0.7, green: 0.5, blue: 1.0)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 56, height: 56)
+                        .shadow(color: Color(red: 0.6, green: 0.4, blue: 1.0).opacity(0.3), radius: 8, x: 0, y: 4)
+                    
+                    Image(systemName: iconForJobType(opportunity.jobType))
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(opportunity.title)
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
+                    
+                    Text(opportunity.jobType)
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                }
+                
+                Spacer()
+            }
             
-            VStack(alignment: .leading, spacing: 6) {
-                Text(opportunity.title)
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(CommunallyTheme.darkGray)
+            // Posted by section
+            HStack(spacing: 12) {
+                // Profile picture
+                if let imageData = opportunity.hirerImageData,
+                   let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 40, height: 40)
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color(red: 0.9, green: 0.9, blue: 0.9), lineWidth: 2)
+                        )
+                } else {
+                    ZStack {
+                        Circle()
+                            .fill(Color(red: 0.95, green: 0.95, blue: 0.95))
+                            .frame(width: 40, height: 40)
+                        
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.6))
+                    }
+                }
                 
-                Text(opportunity.jobType)
-                    .font(CommunallyTheme.bodyFont)
-                    .foregroundColor(CommunallyTheme.darkGray.opacity(0.6))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Posted by")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                    
+                    Text(opportunity.hirerName)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color(red: 0.2, green: 0.2, blue: 0.2))
+                }
                 
-                Text("Posted \(opportunity.timeAgo)")
-                    .font(CommunallyTheme.captionFont)
-                    .foregroundColor(CommunallyTheme.darkGray.opacity(0.5))
+                Spacer()
+                
+                // Time posted
+                Text(opportunity.timeAgo)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 2)
+            )
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 6)
+        )
+    }
+    
+    // MARK: - Old Status Badge (not used)
+    private var statusBadge: some View {
+        HStack(spacing: 12) {
+            // Profile picture
+            if let imageData = opportunity.hirerImageData,
+               let uiImage = UIImage(data: imageData) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 44, height: 44)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.6, green: 0.4, blue: 1.0),
+                                        Color(red: 0.7, green: 0.5, blue: 1.0)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 2
+                            )
+                    )
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.6, green: 0.4, blue: 1.0).opacity(0.2),
+                                    Color(red: 0.7, green: 0.5, blue: 1.0).opacity(0.2)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 44, height: 44)
+                    
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(Color(red: 0.6, green: 0.4, blue: 1.0))
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Posted by")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                
+                Text(opportunity.hirerName)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
             }
             
             Spacer()
         }
-    }
-    
-    // MARK: - Status Badge
-    private var statusBadge: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(opportunity.statusColor)
-                .frame(width: 10, height: 10)
-            
-            Text(opportunity.statusDisplay)
-                .font(CommunallyTheme.bodyFont)
-                .fontWeight(.semibold)
-                .foregroundColor(opportunity.statusColor)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(opportunity.statusColor.opacity(0.1))
-        .cornerRadius(20)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white)
+                .shadow(color: Color(red: 0.6, green: 0.4, blue: 1.0).opacity(0.1), radius: 10, x: 0, y: 4)
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
     }
     
     // MARK: - Pay Info Section
     private var payInfoSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Compensation")
-                .font(CommunallyTheme.titleFont)
-                .fontWeight(.bold)
-                .foregroundColor(CommunallyTheme.darkGray)
-            
-            HStack {
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(opportunity.isVolunteer ? Color.red.opacity(0.1) : Color(red: 0.6, green: 0.4, blue: 1.0).opacity(0.1))
+                    .frame(width: 50, height: 50)
+                
                 Image(systemName: opportunity.isVolunteer ? "heart.fill" : "dollarsign.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(opportunity.isVolunteer ? .red : CommunallyTheme.primaryGreen)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(opportunity.isVolunteer ? .red : Color(red: 0.6, green: 0.4, blue: 1.0))
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Compensation")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
                 
                 Text(opportunity.displayPay)
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(CommunallyTheme.darkGray)
-                
-                Spacer()
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
             }
-            .padding(16)
-            .background(Color.white)
-            .cornerRadius(12)
-            .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+            
+            Spacer()
         }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)
+        )
     }
     
     // MARK: - Description Section
     private var descriptionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Description")
-                .font(CommunallyTheme.titleFont)
-                .fontWeight(.bold)
-                .foregroundColor(CommunallyTheme.darkGray)
+            HStack(spacing: 8) {
+                Image(systemName: "doc.text.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(red: 0.6, green: 0.4, blue: 1.0))
+                
+                Text("Description")
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
+            }
             
             Text(opportunity.description)
-                .font(CommunallyTheme.bodyFont)
-                .foregroundColor(CommunallyTheme.darkGray.opacity(0.8))
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white)
-                .cornerRadius(12)
-                .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+                .font(.system(size: 15, weight: .regular, design: .rounded))
+                .foregroundColor(Color(red: 0.3, green: 0.3, blue: 0.3))
+                .lineSpacing(4)
         }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)
+        )
     }
     
     // MARK: - Location Section
     private var locationSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Location")
-                .font(CommunallyTheme.titleFont)
-                .fontWeight(.bold)
-                .foregroundColor(CommunallyTheme.darkGray)
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(Color(red: 0.6, green: 0.4, blue: 1.0).opacity(0.1))
+                    .frame(width: 50, height: 50)
+                
+                Image(systemName: "mappin.circle.fill")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(Color(red: 0.6, green: 0.4, blue: 1.0))
+            }
             
-            HStack {
-                Image(systemName: "location.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(CommunallyTheme.primaryGreen)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Location")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
                 
                 Text(opportunity.locationName)
-                    .font(CommunallyTheme.bodyFont)
-                    .foregroundColor(CommunallyTheme.darkGray)
-                
-                Spacer()
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
             }
-            .padding(16)
-            .background(Color.white)
-            .cornerRadius(12)
-            .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+            
+            Spacer()
         }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)
+        )
     }
     
     // MARK: - Applications Section
     private var applicationsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Applications")
-                    .font(CommunallyTheme.titleFont)
-                    .fontWeight(.bold)
-                    .foregroundColor(CommunallyTheme.darkGray)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color(red: 0.6, green: 0.4, blue: 1.0).opacity(0.1))
+                        .frame(width: 50, height: 50)
+                    
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundColor(Color(red: 0.6, green: 0.4, blue: 1.0))
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Applications")
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
+                    
+                    Text("\(opportunity.applicantCount) \(opportunity.applicantCount == 1 ? "applicant" : "applicants")")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                }
                 
                 Spacer()
-                
-                Text("\(opportunity.applicantCount)")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(CommunallyTheme.primaryGreen)
-                    .cornerRadius(16)
             }
             
-            if pendingApplications.isEmpty {
-                Text("No applications yet")
-                    .font(CommunallyTheme.bodyFont)
-                    .foregroundColor(CommunallyTheme.darkGray.opacity(0.6))
-                    .padding(16)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.white)
-                    .cornerRadius(12)
-            } else {
-                Button(action: {
-                    showingApplicants = true
-                }) {
-                    HStack {
-                        Text("View \(pendingApplications.count) Applicant\(pendingApplications.count == 1 ? "" : "s")")
-                            .font(CommunallyTheme.bodyFont)
-                            .fontWeight(.semibold)
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                    }
-                    .foregroundColor(CommunallyTheme.darkGray)
-                    .padding(16)
-                    .background(Color.white)
-                    .cornerRadius(12)
-                    .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+            if opportunity.applicantCount == 0 {
+                // Empty state with better design
+                VStack(spacing: 12) {
+                    Image(systemName: "person.2.slash.fill")
+                        .font(.system(size: 36, weight: .medium))
+                        .foregroundColor(Color(red: 0.7, green: 0.7, blue: 0.7))
+                    
+                    Text("No applications yet")
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                    
+                    Text("Applications will appear here when job seekers apply")
+                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                        .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.6))
+                        .multilineTextAlignment(.center)
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 32)
+                .padding(.horizontal, 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color.white)
+                        .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
+                )
+            } else {
+                // Show applicants inline
+                VStack(spacing: 12) {
+                    ForEach(pendingApplications) { application in
+                        InlineApplicantCard(
+                            application: application,
+                            onAccept: {
+                                selectedApplicant = application
+                                showingAcceptConfirm = true
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        .alert("Accept Applicant?", isPresented: $showingAcceptConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Accept", role: .destructive) {
+                if let applicant = selectedApplicant {
+                    let impactMed = UIImpactFeedbackGenerator(style: .medium)
+                    impactMed.impactOccurred()
+                    acceptApplicant(applicant)
+                }
+            }
+        } message: {
+            if let applicant = selectedApplicant {
+                Text("Accept \(applicant.applicantName) for this job?\n\nAll other applications will be automatically rejected and the opportunity will close to new applicants.")
             }
         }
     }
@@ -350,6 +532,107 @@ struct OpportunityDetailView: View {
         
         dismiss()
     }
+    
+    private func acceptApplicant(_ application: JobApplication) {
+        applicationManager.acceptApplication(applicationId: application.id)
+        print("✅ Accepted applicant: \(application.applicantName)")
+    }
+}
+
+// MARK: - Inline Applicant Card
+struct InlineApplicantCard: View {
+    let application: JobApplication
+    let onAccept: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 14) {
+            // Profile picture
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.6, green: 0.4, blue: 1.0),
+                                Color(red: 0.7, green: 0.5, blue: 1.0)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 56, height: 56)
+                
+                if let imageData = application.applicantImageData,
+                   let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 52, height: 52)
+                        .clipShape(Circle())
+                } else {
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(.white)
+                }
+            }
+            
+            // Applicant info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(application.applicantName)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.15))
+                
+                HStack(spacing: 6) {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color(red: 0.6, green: 0.4, blue: 1.0))
+                    
+                    Text("Applied \(application.timeAgo)")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                }
+            }
+            
+            Spacer()
+            
+            // Accept button
+            Button(action: {
+                let impactMed = UIImpactFeedbackGenerator(style: .medium)
+                impactMed.impactOccurred()
+                onAccept()
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                    
+                    Text("Accept")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.6, green: 0.4, blue: 1.0),
+                            Color(red: 0.7, green: 0.5, blue: 1.0)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .cornerRadius(20)
+                .shadow(color: Color(red: 0.6, green: 0.4, blue: 1.0).opacity(0.4), radius: 8, x: 0, y: 4)
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white)
+                .shadow(color: Color(red: 0.6, green: 0.4, blue: 1.0).opacity(0.1), radius: 10, x: 0, y: 4)
+                .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+        )
+    }
 }
 
 #Preview {
@@ -359,6 +642,8 @@ struct OpportunityDetailView: View {
             title: "Gardening Needed",
             description: "Need help with lawn mowing and weeding",
             hirerId: "hirer123",
+            hirerName: "John Smith",
+            hirerImageData: nil,
             location: Location(latitude: 37.7749, longitude: -122.4194, address: "San Francisco"),
             locationName: "San Francisco, CA",
             isVolunteer: false,

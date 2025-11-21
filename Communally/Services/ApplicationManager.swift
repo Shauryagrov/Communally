@@ -7,35 +7,75 @@
 
 import Foundation
 import SwiftUI
+import FirebaseFirestore
 
 class ApplicationManager: ObservableObject {
     static let shared = ApplicationManager()
     
     @Published var applications: [JobApplication] = []
     
-    private let applicationsKey = "savedApplications"
+    private let db = Firestore.firestore()
+    private var listener: ListenerRegistration?
     
     private init() {
-        loadApplications()
+        startListening()
     }
     
-    private func loadApplications() {
-        guard let data = UserDefaults.standard.data(forKey: applicationsKey),
-              let decoded = try? JSONDecoder().decode([JobApplication].self, from: data) else {
-            print("ℹ️ No saved applications found")
-            return
-        }
-        applications = decoded
-        print("✅ Loaded \(decoded.count) applications from storage")
+    deinit {
+        listener?.remove()
     }
     
-    private func saveApplications() {
-        guard let encoded = try? JSONEncoder().encode(applications) else {
-            print("❌ Failed to encode applications")
-            return
-        }
-        UserDefaults.standard.set(encoded, forKey: applicationsKey)
-        print("💾 Saved \(applications.count) applications to storage")
+    // Real-time sync with Firebase
+    private func startListening() {
+        listener = db.collection("applications")
+            .addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self else { return }
+                
+                if let error = error {
+                    print("❌ Error listening to applications: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else {
+                    print("ℹ️ No applications found")
+                    return
+                }
+                
+                self.applications = documents.compactMap { doc -> JobApplication? in
+                    let data = doc.data()
+                    
+                    guard let opportunityId = data["opportunityId"] as? String,
+                          let applicantId = data["applicantId"] as? String,
+                          let applicantName = data["applicantName"] as? String,
+                          let statusString = data["status"] as? String,
+                          let status = ApplicationStatus(rawValue: statusString),
+                          let appliedAtTimestamp = data["appliedAt"] as? Timestamp else {
+                        return nil
+                    }
+                    
+                    let applicantImageDataString = data["applicantImageData"] as? String
+                    let applicantImageData = applicantImageDataString.flatMap { Data(base64Encoded: $0) }
+                    
+                    let acceptedAtTimestamp = data["acceptedAt"] as? Timestamp
+                    let completedAtTimestamp = data["completedAt"] as? Timestamp
+                    let message = data["message"] as? String
+                    
+                    return JobApplication(
+                        id: doc.documentID,
+                        opportunityId: opportunityId,
+                        applicantId: applicantId,
+                        applicantName: applicantName,
+                        applicantImageData: applicantImageData,
+                        status: status,
+                        appliedAt: appliedAtTimestamp.dateValue(),
+                        acceptedAt: acceptedAtTimestamp?.dateValue(),
+                        completedAt: completedAtTimestamp?.dateValue(),
+                        message: message
+                    )
+                }
+                
+                print("✅ Synced \(self.applications.count) applications from Firebase")
+            }
     }
     
     // Submit application
@@ -46,25 +86,32 @@ class ApplicationManager: ObservableObject {
             return
         }
         
-        let application = JobApplication(
-            id: UUID().uuidString,
-            opportunityId: opportunityId,
-            applicantId: applicantId,
-            applicantName: applicantName,
-            applicantImageData: applicantImageData,
-            status: .pending,
-            appliedAt: Date(),
-            message: nil
-        )
+        let applicationId = UUID().uuidString
         
-        applications.append(application)
-        saveApplications()
+        // Convert image data to base64 for Firebase
+        let imageDataString = applicantImageData?.base64EncodedString()
         
-        // Update opportunity applicant count
-        OpportunityManager.shared.incrementApplicantCount(opportunityId: opportunityId)
+        let applicationData: [String: Any] = [
+            "opportunityId": opportunityId,
+            "applicantId": applicantId,
+            "applicantName": applicantName,
+            "applicantImageData": imageDataString as Any,
+            "status": ApplicationStatus.pending.rawValue,
+            "appliedAt": Timestamp(date: Date()),
+            "message": NSNull()
+        ]
         
-        print("✅ Application submitted by \(applicantName)")
-        print("📊 Total applications: \(applications.count)")
+        // Save to Firebase
+        db.collection("applications").document(applicationId).setData(applicationData) { error in
+            if let error = error {
+                print("❌ Error submitting application: \(error.localizedDescription)")
+            } else {
+                print("✅ Application submitted by \(applicantName)")
+                
+                // Update opportunity applicant count
+                OpportunityManager.shared.incrementApplicantCount(opportunityId: opportunityId)
+            }
+        }
     }
     
     // Check if user already applied
@@ -93,37 +140,58 @@ class ApplicationManager: ObservableObject {
     
     // Accept application (hirer chooses someone)
     func acceptApplication(applicationId: String) {
-        guard let index = applications.firstIndex(where: { $0.id == applicationId }) else {
+        guard let application = applications.first(where: { $0.id == applicationId }) else {
+            print("❌ Application not found")
             return
         }
         
-        let application = applications[index]
         let opportunityId = application.opportunityId
         
-        // Update this application to accepted
-        applications[index].status = .accepted
-        applications[index].acceptedAt = Date()
-        
-        // Reject all other pending applications for this opportunity
-        for i in 0..<applications.count {
-            if applications[i].opportunityId == opportunityId && 
-               applications[i].id != applicationId && 
-               applications[i].status == .pending {
-                applications[i].status = .rejected
+        // Update this application to accepted in Firebase
+        db.collection("applications").document(applicationId).updateData([
+            "status": ApplicationStatus.accepted.rawValue,
+            "acceptedAt": Timestamp(date: Date())
+        ]) { error in
+            if let error = error {
+                print("❌ Error accepting application: \(error.localizedDescription)")
+                return
+            }
+            
+            print("✅ Application accepted for opportunity \(opportunityId)")
+            
+            // Update opportunity status to in progress
+            OpportunityManager.shared.updateOpportunityStatus(
+                opportunityId: opportunityId,
+                status: .inProgress,
+                acceptedApplicantId: application.applicantId
+            )
+            
+            // Create conversation for messaging
+            Task {
+                await self.createConversationForAcceptedApplication(application)
             }
         }
         
-        saveApplications()
+        // Reject all other pending applications for this opportunity
+        let otherApplications = applications.filter {
+            $0.opportunityId == opportunityId &&
+            $0.id != applicationId &&
+            $0.status == .pending
+        }
         
-        // Update opportunity status to in progress
-        OpportunityManager.shared.updateOpportunityStatus(
-            opportunityId: opportunityId, 
-            status: .inProgress,
-            acceptedApplicantId: application.applicantId
-        )
+        let batch = db.batch()
+        for app in otherApplications {
+            let docRef = db.collection("applications").document(app.id)
+            batch.updateData(["status": ApplicationStatus.rejected.rawValue], forDocument: docRef)
+        }
         
-        print("✅ Application accepted for opportunity \(opportunityId)")
-        print("❌ Other applications rejected")
+        batch.commit { error in
+            if let error = error {
+                print("❌ Error rejecting other applications: \(error.localizedDescription)")
+            } else {
+                print("❌ Other \(otherApplications.count) applications rejected")
+            }
+        }
     }
     
     // Complete job (hirer confirms done)
@@ -135,23 +203,85 @@ class ApplicationManager: ObservableObject {
             acceptedApplicantId: nil
         )
         
-        // Update application status
-        if let index = applications.firstIndex(where: { 
-            $0.opportunityId == opportunityId && $0.status == .accepted 
+        // Update application status in Firebase
+        if let application = applications.first(where: {
+            $0.opportunityId == opportunityId && $0.status == .accepted
         }) {
-            applications[index].status = .completed
-            applications[index].completedAt = Date()
-            saveApplications()
+            db.collection("applications").document(application.id).updateData([
+                "status": ApplicationStatus.completed.rawValue,
+                "completedAt": Timestamp(date: Date())
+            ]) { error in
+                if let error = error {
+                    print("❌ Error completing application: \(error.localizedDescription)")
+                } else {
+                    print("✅ Job completed for opportunity \(opportunityId)")
+                }
+            }
         }
-        
-        print("✅ Job completed for opportunity \(opportunityId)")
     }
     
     // Cancel application
     func cancelApplication(applicationId: String) {
-        if let index = applications.firstIndex(where: { $0.id == applicationId }) {
-            applications[index].status = .cancelled
-            saveApplications()
+        db.collection("applications").document(applicationId).updateData([
+            "status": ApplicationStatus.cancelled.rawValue
+        ]) { error in
+            if let error = error {
+                print("❌ Error cancelling application: \(error.localizedDescription)")
+            } else {
+                print("✅ Application cancelled")
+            }
+        }
+    }
+    
+    // MARK: - Create Conversation
+    
+    private func createConversationForAcceptedApplication(_ application: JobApplication) async {
+        // Get opportunity details
+        let opportunity = OpportunityManager.shared.opportunities.first { $0.safeId == application.opportunityId }
+        
+        guard let opp = opportunity else {
+            print("⚠️ Opportunity not found for conversation creation")
+            return
+        }
+        
+        // Create conversation
+        let conversationId = await MessageManager.shared.createConversation(
+            opportunityId: opp.safeId,
+            hirerId: opp.hirerId,
+            hirerName: opp.hirerName,
+            hirerImageData: opp.hirerImageData,
+            applicantId: application.applicantId,
+            applicantName: application.applicantName,
+            applicantImageData: application.applicantImageData
+        )
+        
+        if conversationId != nil {
+            print("✅ Conversation created for accepted application")
+        }
+    }
+    
+    // MARK: - Developer Tools
+    
+    /// Delete all applications from Firebase (for testing)
+    func deleteAllApplications() async {
+        let collectionRef = db.collection("applications")
+        let querySnapshot = try? await collectionRef.getDocuments()
+        
+        guard let documents = querySnapshot?.documents else {
+            print("ℹ️ No applications to delete.")
+            return
+        }
+        
+        let batch = db.batch()
+        for document in documents {
+            batch.deleteDocument(document.reference)
+        }
+        
+        do {
+            try await batch.commit()
+            print("✅ All applications deleted from Firestore.")
+        } catch {
+            print("❌ Error deleting all applications: \(error.localizedDescription)")
         }
     }
 }

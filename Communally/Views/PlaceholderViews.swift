@@ -172,6 +172,10 @@ struct ProfileView: View {
 struct AccountView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @Environment(\.dismiss) var dismiss
+    @State private var showDeleteConfirmation = false
+    @State private var isDeleting = false
+    @State private var showDeleteApplicationsConfirmation = false
+    @State private var isDeletingApplications = false
     
     var body: some View {
         NavigationView {
@@ -205,6 +209,94 @@ struct AccountView: View {
                         .cornerRadius(CommunallyTheme.cornerRadius)
                         .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 3)
                         
+                        // Debug/Developer Options
+                        VStack(spacing: 16) {
+                            Text("Developer Options")
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            Button(action: {
+                                showDeleteConfirmation = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "trash.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(.red)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Clear All Opportunities")
+                                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                            .foregroundColor(.red)
+                                        
+                                        Text("Delete all posted opportunities from Firebase")
+                                            .font(.system(size: 12, weight: .regular, design: .rounded))
+                                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    if isDeleting {
+                                        ProgressView()
+                                            .tint(.red)
+                                    }
+                                }
+                                .padding(16)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.red.opacity(0.05))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .strokeBorder(Color.red.opacity(0.2), lineWidth: 1)
+                                        )
+                                )
+                            }
+                            .disabled(isDeleting)
+                            .buttonStyle(PlainButtonStyle())
+                            
+                            Button(action: {
+                                showDeleteApplicationsConfirmation = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "person.crop.circle.badge.xmark")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(.orange)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Clear All Applications")
+                                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                            .foregroundColor(.orange)
+                                        
+                                        Text("Delete all job applications from Firebase")
+                                            .font(.system(size: 12, weight: .regular, design: .rounded))
+                                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    if isDeletingApplications {
+                                        ProgressView()
+                                            .tint(.orange)
+                                    }
+                                }
+                                .padding(16)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.orange.opacity(0.05))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .strokeBorder(Color.orange.opacity(0.2), lineWidth: 1)
+                                        )
+                                )
+                            }
+                            .disabled(isDeletingApplications)
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                        .padding(CommunallyTheme.padding)
+                        .background(Color.white.opacity(0.5))
+                        .cornerRadius(CommunallyTheme.cornerRadius)
+                        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 3)
+                        
                         Spacer(minLength: 100)
                     }
                     .padding(CommunallyTheme.padding)
@@ -220,6 +312,30 @@ struct AccountView: View {
                     }
                     .foregroundColor(CommunallyTheme.primaryGreen)
                 }
+            }
+            .alert("Clear All Data?", isPresented: $showDeleteConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete All", role: .destructive) {
+                    Task {
+                        isDeleting = true
+                        await OpportunityManager.shared.deleteAllOpportunities()
+                        isDeleting = false
+                    }
+                }
+            } message: {
+                Text("This will permanently delete all opportunities from Firebase. This action cannot be undone.")
+            }
+            .alert("Clear All Applications?", isPresented: $showDeleteApplicationsConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete All", role: .destructive) {
+                    Task {
+                        isDeletingApplications = true
+                        await ApplicationManager.shared.deleteAllApplications()
+                        isDeletingApplications = false
+                    }
+                }
+            } message: {
+                Text("This will permanently delete all job applications from Firebase. This action cannot be undone.")
             }
         }
     }
